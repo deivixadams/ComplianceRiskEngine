@@ -1,0 +1,17 @@
+{
+  "scripts": {
+    "dashboard": "npm run dev --prefix cre-dashboard",
+    "dashboard:build": "npm run build --prefix cre-dashboard",
+    "dashboard:start": "npm run start --prefix cre-dashboard",
+    "prisma:generate": "npx prisma generate --schema prisma/schema.prisma",
+    "prisma:validate": "npx prisma validate --schema prisma/schema.prisma",
+    "prisma:pull": "npx prisma db pull --schema prisma/schema.prisma",
+    "engine:test": "node lib/engine.ts"
+  },
+  "dependencies": {
+    "pg": "^8.18.0"
+  },
+  "devDependencies": {
+    "prisma": "^7.4.1"
+  }
+}

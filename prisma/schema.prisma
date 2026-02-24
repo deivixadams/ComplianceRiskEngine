@@ -1,0 +1,226 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Catalogs ---
+
+model CatalogCriticality {
+  id          Int      @id @db.SmallInt
+  code        String   @unique
+  name        String
+  description String?
+  sortOrder   Int      @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  obligations Obligation[]
+
+  @@map("corpus_catalog_criticality")
+}
+
+model CatalogStatus {
+  id        Int     @id @db.SmallInt
+  code      String  @unique
+  name      String
+  sortOrder Int     @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  @@map("corpus_catalog_status")
+}
+
+// --- Core Entities ---
+
+model Jurisdiction {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code       String      @unique
+  name       String
+  iso2       String?
+  iso3       String?
+  status     String
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime    @default(now()) @map("updated_at") @db.Timestamptz(6)
+  statusId   Int?        @map("status_id") @db.SmallInt
+  frameworks Framework[]
+
+  @@map("corpus_jurisdiction")
+}
+
+model Framework {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jurisdictionId String             @map("jurisdiction_id") @db.Uuid
+  code           String
+  name           String
+  description    String?
+  status         String
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+  statusId       Int?               @map("status_id") @db.SmallInt
+  jurisdiction   Jurisdiction       @relation(fields: [jurisdictionId], references: [id])
+  versions       FrameworkVersion[]
+
+  @@map("corpus_framework")
+}
+
+model FrameworkVersion {
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  frameworkId   String     @map("framework_id") @db.Uuid
+  version       String
+  effectiveDate DateTime?  @map("effective_date") @db.Date
+  changelog     String?
+  status        String
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime   @default(now()) @map("updated_at") @db.Timestamptz(6)
+  statusId      Int?       @map("status_id") @db.SmallInt
+  framework     Framework  @relation(fields: [frameworkId], references: [id])
+  domains       Domain[]
+  sources       Source[]
+
+  @@map("corpus_framework_version")
+}
+
+model Domain {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  frameworkVersionId String           @map("framework_version_id") @db.Uuid
+  code               String
+  name               String
+  description        String?
+  status             String
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
+  statusId           Int?             @map("status_id") @db.SmallInt
+  frameworkVersion   FrameworkVersion @relation(fields: [frameworkVersionId], references: [id])
+  obligations        Obligation[]
+
+  @@map("corpus_domain")
+}
+
+model Obligation {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  domainId         String             @map("domain_id") @db.Uuid
+  code             String
+  title            String
+  statement        String
+  sourceRef        String?            @map("source_ref")
+  rationale        String?
+  status           String
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+  statusId         Int?               @map("status_id") @db.SmallInt
+  isHardGate       Boolean            @default(false) @map("is_hard_gate")
+  criticalityId    Int                @map("criticality_id") @db.SmallInt
+  domain           Domain             @relation(fields: [domainId], references: [id])
+  criticality      CatalogCriticality @relation(fields: [criticalityId], references: [id])
+  risks            ObligationRisk[]
+  controls         Control[]          @relation("corpus_control_obligation")
+
+  @@map("corpus_obligation")
+}
+
+model Risk {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String           @unique
+  name        String
+  riskType    String           @map("risk_type")
+  description String?
+  status      String
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
+  obligations ObligationRisk[]
+  controls    ControlRiskMap[]
+
+  @@map("corpus_risk")
+}
+
+model ObligationRisk {
+  obligationId String     @map("obligation_id") @db.Uuid
+  riskId       String     @map("risk_id") @db.Uuid
+  linkStrength Int        @default(1) @map("link_strength") @db.SmallInt
+  obligation   Obligation @relation(fields: [obligationId], references: [id])
+  risk         Risk       @relation(fields: [riskId], references: [id])
+
+  @@id([obligationId, riskId])
+  @@map("corpus_obligation_risk")
+}
+
+model Control {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code              String           @unique
+  name              String
+  description       String
+  status            String
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
+  isHardGate        Boolean          @default(false) @map("is_hard_gate")
+  obligations       Obligation[]     @relation("corpus_control_obligation")
+  risks             ControlRiskMap[]
+  artifacts         Artifact[]
+  testRuns          TestControlRun[]
+
+  @@map("corpus_control")
+}
+
+model ControlRiskMap {
+  controlId String  @map("control_id") @db.Uuid
+  riskId    String  @map("risk_id") @db.Uuid
+  mitigationStrength Int @map("mitigation_strength") @db.SmallInt
+  control   Control @relation(fields: [controlId], references: [id])
+  risk      Risk    @relation(fields: [riskId], references: [id])
+
+  @@id([controlId, riskId])
+  @@map("corpus_control_risk_map")
+}
+
+// --- Execution & Evidence ---
+
+model Artifact {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  controlId   String   @map("control_id") @db.Uuid
+  code        String
+  name        String
+  artifactType String   @map("artifact_type")
+  version     String
+  status      String
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  control     Control  @relation(fields: [controlId], references: [id])
+
+  @@map("corpus_control_artifact")
+}
+
+model Test {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code      String           @unique
+  name      String
+  method    String
+  testRuns  TestControlRun[]
+
+  @@map("corpus_test")
+}
+
+model TestControlRun {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  controlId   String   @map("control_id") @db.Uuid
+  testId      String   @map("test_id") @db.Uuid
+  executedAt  DateTime @default(now()) @map("executed_at") @db.Timestamptz(6)
+  result      String
+  score       Decimal  @db.Decimal
+  control     Control  @relation(fields: [controlId], references: [id])
+  test        Test     @relation(fields: [testId], references: [id])
+
+  @@map("corpus_test_control_run")
+}
+
+model Source {
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  frameworkVersionId String?           @map("framework_version_id") @db.Uuid
+  sourceType         String            @map("source_type")
+  citation           String
+  url                String?
+  status             String
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  frameworkVersion   FrameworkVersion? @relation(fields: [frameworkVersionId], references: [id])
+
+  @@map("corpus_source")
+}

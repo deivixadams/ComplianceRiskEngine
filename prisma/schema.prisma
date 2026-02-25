@@ -460,7 +460,7 @@ model CorpusParameterObligationWeight {
 
 // --- MISC / AUDIT ---
 
-model CorpusMaterialEvent {
+model CorpusAuditFinding {
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId          String   @map("tenant_id") @db.Uuid
   code              String
@@ -479,7 +479,7 @@ model CorpusMaterialEvent {
   closedBy          String?  @map("closed_by") @db.Uuid
   metadata          Json?    @default("{}")
 
-  @@map("corpus_material_event")
+  @@map("corpus_audit_finding")
 }
 
 model CorpusAuditLog {

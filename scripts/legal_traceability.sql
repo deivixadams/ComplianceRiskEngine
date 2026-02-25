@@ -2,8 +2,8 @@
 -- SCHEMA: Legal Traceability & Freeze Enforcement (CRE)
 -- -----------------------------------------------------------------------------
 
--- 1. MATERIAL EVENTS TABLE
-CREATE TABLE IF NOT EXISTS corpus.corpus_material_event (
+-- 1. AUDIT FINDINGS TABLE
+CREATE TABLE IF NOT EXISTS corpus.corpus_audit_finding (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL,
     code TEXT NOT NULL,

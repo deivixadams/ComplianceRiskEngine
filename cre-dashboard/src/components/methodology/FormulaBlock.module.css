@@ -1,0 +1,62 @@
+.formulaWrapper {
+    position: relative;
+    transition: all 0.5s ease;
+}
+
+.glow {
+    position: absolute;
+    inset: -4px;
+    background: linear-gradient(90deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
+    border-radius: 1.5rem;
+    filter: blur(16px);
+    opacity: 0;
+    transition: opacity 0.5s ease;
+}
+
+.formulaWrapper:hover .glow {
+    opacity: 1;
+}
+
+.formulaCard {
+    position: relative;
+    padding: 1.5rem;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 1.5rem;
+    backdrop-filter: blur(12px);
+    transition: all 0.3s ease;
+}
+
+.formulaWrapper:hover .formulaCard {
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+.label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 10px;
+    color: rgba(248, 252, 252, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    font-weight: 900;
+    margin-bottom: 1rem;
+}
+
+.dot {
+    width: 4px;
+    height: 4px;
+    background-color: #3b82f6;
+    border-radius: 9999px;
+    opacity: 0.5;
+}
+
+.mathContent {
+    overflow-x: auto;
+    padding: 0.75rem 0;
+    color: #ffffff;
+}
+
+.mathContent :global(.katex-display) {
+    margin: 0;
+}

@@ -1,0 +1,120 @@
+.tableContainer {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.scrollArea {
+    overflow-x: auto;
+    border-radius: 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 600px;
+    text-align: left;
+}
+
+.headerRow {
+    background: rgba(5, 11, 26, 0.95);
+    backdrop-filter: blur(12px);
+}
+
+.th {
+    padding: 1.25rem 2rem;
+    font-size: 10px;
+    color: rgba(59, 130, 246, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    font-weight: 900;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.td {
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    font-size: 14px;
+}
+
+.codeCell {
+    font-family: monospace;
+    color: #3b82f6;
+    font-weight: 700;
+    background: rgba(59, 130, 246, 0.1);
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    font-size: 12px;
+}
+
+.nameCell {
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 500;
+}
+
+.valueCell {
+    text-align: right;
+    font-weight: 900;
+    color: #ffffff;
+    font-size: 15px;
+}
+
+.rangeCell {
+    font-family: monospace;
+    font-size: 11px;
+    color: rgba(248, 252, 252, 0.4);
+}
+
+.approverBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 9px;
+    color: rgba(248, 252, 252, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.approverDot {
+    width: 4px;
+    height: 4px;
+    background: rgba(59, 130, 246, 0.4);
+    border-radius: 9999px;
+}
+
+.infoBox {
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.01);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.infoIcon {
+    width: 6px;
+    height: 6px;
+    background: rgba(59, 130, 246, 0.4);
+    border-radius: 9999px;
+    flex-shrink: 0;
+}
+
+.infoText {
+    font-size: 12px;
+    color: rgba(248, 252, 252, 0.4);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+}
+
+.infoHighlight {
+    color: #ffffff;
+}

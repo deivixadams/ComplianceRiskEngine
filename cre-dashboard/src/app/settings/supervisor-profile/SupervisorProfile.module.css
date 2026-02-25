@@ -1,0 +1,287 @@
+.pageContainer {
+    min-height: 100vh;
+    background-color: #050b1a;
+    color: #f8fafc;
+    font-family: 'Inter', sans-serif;
+    animation: fadeIn 0.8s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.contentWrapper {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 3rem 2rem;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 4rem;
+    padding-bottom: 2.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.titleArea {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.iconBox {
+    width: 4.5rem;
+    height: 4.5rem;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #3b82f6;
+}
+
+.mainTitle {
+    font-size: 2.5rem;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    margin: 0;
+    color: #ffffff;
+}
+
+.subtitle {
+    color: rgba(248, 252, 252, 0.5);
+    font-size: 1rem;
+    margin: 0.25rem 0 0 0;
+    font-weight: 300;
+}
+
+/* Selectors Grid */
+.selectorGrid {
+    display: grid;
+    grid-template-cols: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+}
+
+.selectorCard {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 1rem;
+    padding: 1rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.selectorLabel {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    font-weight: 900;
+    color: rgba(59, 130, 246, 0.6);
+}
+
+.select {
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 700;
+    outline: none;
+    cursor: pointer;
+}
+
+/* Layout Split */
+.mainGrid {
+    display: grid;
+    grid-template-cols: 1fr 380px;
+    gap: 2.5rem;
+    align-items: start;
+}
+
+.configPanel {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+}
+
+/* Cards */
+.card {
+    background: rgba(30, 41, 59, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 2rem;
+    padding: 2.5rem;
+    backdrop-filter: blur(16px);
+    position: relative;
+    overflow: hidden;
+}
+
+.cardHeader {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.cardHeader h2 {
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: #ffffff;
+}
+
+.cardIcon {
+    color: #3b82f6;
+    opacity: 0.8;
+}
+
+/* Parameters Grid */
+.paramsGrid {
+    display: grid;
+    grid-template-cols: repeat(2, 1fr);
+    gap: 2rem;
+}
+
+.paramItem {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.paramLabel {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.paramName {
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(248, 252, 252, 0.8);
+}
+
+.paramValue {
+    font-family: monospace;
+    font-weight: 900;
+    color: #3b82f6;
+}
+
+.inputRange {
+    width: 100%;
+    accent-color: #3b82f6;
+}
+
+/* Tables */
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.table th {
+    padding: 1rem;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-weight: 900;
+    color: rgba(248, 252, 252, 0.4);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.table td {
+    padding: 1.25rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+    font-size: 13px;
+}
+
+.inputNumber {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    color: #ffffff;
+    width: 60px;
+    text-align: right;
+    font-family: monospace;
+    font-weight: 700;
+}
+
+/* Summary Panel */
+.summaryContainer {
+    position: sticky;
+    top: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.jsonPreview {
+    background: rgba(0, 0, 0, 0.4);
+    padding: 1.5rem;
+    border-radius: 1.25rem;
+    font-family: monospace;
+    font-size: 11px;
+    color: #3b82f6;
+    white-space: pre-wrap;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.hashTag {
+    font-size: 10px;
+    color: rgba(248, 252, 252, 0.3);
+    letter-spacing: 0.2em;
+    text-align: center;
+    margin-top: 1rem;
+}
+
+/* Actions */
+.buttonGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.btn {
+    padding: 1rem;
+    border-radius: 1rem;
+    font-weight: 700;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btnPrimary {
+    background: #3b82f6;
+    border: none;
+    color: #ffffff;
+}
+
+.btnPrimary:hover {
+    background: #2563eb;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+}
+
+.btnSecondary {
+    background: rgba(255, 255, 255, 0.03);
+    color: #ffffff;
+}
+
+.btnSecondary:hover {
+    background: rgba(255, 255, 255, 0.08);
+}

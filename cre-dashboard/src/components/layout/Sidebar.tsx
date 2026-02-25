@@ -69,7 +69,7 @@ const institutionalMenu: MenuSection[] = [
         id: "administracion",
         title: "ADMINISTRACIÓN",
         items: [
-            { icon: Lock, label: "Usuarios y Roles", href: "/admin/usuarios", tooltip: "Gestión de accesos y permisos." },
+            { icon: Lock, label: "Usuarios y Roles", href: "/admin", tooltip: "Gestión de accesos y permisos." },
             { icon: Activity, label: "Continuidad", href: "/admin/continuidad", tooltip: "Configuración de respaldo, trazabilidad y resiliencia." },
         ]
     }

@@ -29,8 +29,6 @@ export default function LoginPage() {
                 throw new Error(data.error || 'Autenticación fallida');
             }
 
-            // Successfully logged in
-            // Set some local state or cookie if needed, then redirect
             router.push('/');
         } catch (err: any) {
             setError(err.message);
@@ -40,79 +38,140 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-6 bg-[#030712] relative overflow-hidden">
+        <div style={{
+            minHeight: '80vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '2rem',
+            position: 'relative',
+        }}>
             {/* Background elements */}
-            <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
-            <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none" />
+            <div style={{
+                position: 'absolute',
+                top: '-10%',
+                right: '-10%',
+                width: '500px',
+                height: '500px',
+                background: 'rgba(59, 130, 246, 0.05)',
+                borderRadius: '50%',
+                filter: 'blur(120px)',
+                pointerEvents: 'none'
+            }} />
 
-            <div className="w-full max-w-md animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <div style={{ width: '100%', maxWidth: '400px', position: 'relative' }}>
                 {/* Logo Area */}
-                <div className="text-center mb-8 flex flex-col items-center">
-                    <div className="w-16 h-16 bg-blue-600/20 border border-blue-500/30 rounded-2xl flex items-center justify-center mb-4 shadow-xl shadow-blue-500/10">
-                        <Shield size={32} className="text-blue-500" />
+                <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
+                    <div style={{
+                        width: '64px',
+                        height: '64px',
+                        background: 'rgba(59, 130, 246, 0.1)',
+                        border: '1px solid rgba(59, 130, 246, 0.2)',
+                        borderRadius: '16px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: '1rem',
+                        boxShadow: '0 8px 32px rgba(59, 130, 246, 0.1)'
+                    }}>
+                        <Shield size={32} style={{ color: 'var(--primary)' }} />
                     </div>
-                    <h1 className="text-3xl font-black tracking-tight text-white mb-2">
-                        CRE <span className="text-blue-500 text-sm align-top">V3</span>
+                    <h1 style={{ fontSize: '2rem', fontWeight: 900, color: 'white', margin: 0, letterSpacing: '-0.05rem' }}>
+                        CRE <span style={{ color: 'var(--primary)', fontSize: '1rem', verticalAlign: 'top' }}>V3</span>
                     </h1>
-                    <p className="text-gray-400 text-sm">Compliance Risk Engine Architecture</p>
+                    <p style={{ color: 'var(--muted)', fontSize: '0.8rem', marginTop: '0.5rem' }}>Compliance Risk Engine Architecture</p>
                 </div>
 
                 {/* Login Card */}
-                <div className="bg-gray-900/40 backdrop-blur-xl border border-white/10 p-8 rounded-[2rem] shadow-2xl relative">
-                    <h2 className="text-xl font-bold text-white mb-6">Acceso Institucional</h2>
+                <div className="glass-card" style={{ padding: '2.5rem', borderRadius: '2rem' }}>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'white', marginBottom: '1.5rem' }}>Acceso Institucional</h2>
 
-                    <form onSubmit={handleSubmit} className="space-y-5">
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest pl-1">Correo Electrónico</label>
-                            <div className="relative group">
-                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                    <Mail size={18} className="text-gray-500 group-focus-within:text-blue-500 transition-colors" />
-                                </div>
+                    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        <div>
+                            <label style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem', paddingLeft: '0.25rem' }}>Correo Electrónico</label>
+                            <div style={{ position: 'relative' }}>
+                                <Mail size={18} style={{ position: 'absolute', left: '1rem', top: '1rem', color: 'var(--muted)' }} />
                                 <input
                                     type="email"
                                     required
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     placeholder="nombre@empresa.com"
-                                    className="w-full bg-gray-800/50 border border-white/5 py-3.5 pl-11 pr-4 rounded-xl text-white outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all placeholder:text-gray-600"
+                                    style={{
+                                        width: '100%',
+                                        background: 'rgba(255, 255, 255, 0.03)',
+                                        border: '1px solid var(--glass-border)',
+                                        padding: '0.85rem 1rem 0.85rem 3rem',
+                                        borderRadius: '12px',
+                                        color: 'white',
+                                        outline: 'none'
+                                    }}
                                 />
                             </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <div className="flex justify-between items-center px-1">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Contraseña</label>
-                                <a href="#" className="text-[10px] text-blue-500 font-bold uppercase hover:underline">Olvide mi clave</a>
+                        <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', paddingRight: '0.25rem' }}>
+                                <label style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem', paddingLeft: '0.25rem' }}>Contraseña</label>
+                                <a href="#" style={{ fontSize: '0.65rem', color: 'var(--primary)', fontWeight: 'bold', textDecoration: 'none' }}>Olvidé mi clave</a>
                             </div>
-                            <div className="relative group">
-                                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                    <Lock size={18} className="text-gray-500 group-focus-within:text-blue-500 transition-colors" />
-                                </div>
+                            <div style={{ position: 'relative' }}>
+                                <Lock size={18} style={{ position: 'absolute', left: '1rem', top: '1rem', color: 'var(--muted)' }} />
                                 <input
                                     type="password"
                                     required
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     placeholder="••••••••"
-                                    className="w-full bg-gray-800/50 border border-white/5 py-3.5 pl-11 pr-4 rounded-xl text-white outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all placeholder:text-gray-600"
+                                    style={{
+                                        width: '100%',
+                                        background: 'rgba(255, 255, 255, 0.03)',
+                                        border: '1px solid var(--glass-border)',
+                                        padding: '0.85rem 1rem 0.85rem 3rem',
+                                        borderRadius: '12px',
+                                        color: 'white',
+                                        outline: 'none'
+                                    }}
                                 />
                             </div>
                         </div>
 
                         {error && (
-                            <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl flex items-center gap-3 animate-in fade-in zoom-in duration-300">
-                                <AlertCircle size={18} className="text-red-500 shrink-0" />
-                                <p className="text-red-500 text-xs font-medium">{error}</p>
+                            <div style={{
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.2)',
+                                padding: '0.75rem',
+                                borderRadius: '10px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.75rem'
+                            }}>
+                                <AlertCircle size={18} style={{ color: '#ef4444' }} />
+                                <p style={{ color: '#ef4444', fontSize: '0.75rem', margin: 0, fontWeight: 500 }}>{error}</p>
                             </div>
                         )}
 
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
+                            style={{
+                                background: 'var(--primary)',
+                                color: 'white',
+                                border: 'none',
+                                padding: '1rem',
+                                borderRadius: '12px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.5rem',
+                                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+                                opacity: loading ? 0.7 : 1
+                            }}
                         >
                             {loading ? (
-                                <Loader2 size={20} className="animate-spin" />
+                                <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
                             ) : (
                                 <>
                                     INGRESAR AL SISTEMA <ChevronRight size={18} />
@@ -120,21 +179,17 @@ export default function LoginPage() {
                             )}
                         </button>
                     </form>
-
-                    {/* Decorative subtle border */}
-                    <div className="absolute inset-0 rounded-[2rem] border border-white/5 pointer-events-none" />
                 </div>
 
-                {/* Footer text */}
-                <p className="text-center mt-8 text-gray-500 text-[10px] uppercase tracking-widest font-black opacity-50">
+                <p style={{ textAlign: 'center', marginTop: '2.5rem', color: 'var(--muted)', fontSize: '0.6rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1rem', opacity: 0.5 }}>
                     SISTEMA DE CUANTIFICACIÓN DETERMINISTA - CRE © 2026
                 </p>
             </div>
 
-            <style jsx global>{`
-                @keyframes pulse {
-                    0%, 100% { opacity: 1; }
-                    50% { opacity: 0.5; }
+            <style jsx>{`
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
                 }
             `}</style>
         </div>

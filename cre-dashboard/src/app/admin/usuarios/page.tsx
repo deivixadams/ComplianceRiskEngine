@@ -9,13 +9,14 @@ import {
     Search,
     BadgeCheck,
     MoreVertical,
-    Filter,
     Plus,
     X,
     Lock,
     Loader2,
-    CheckCircle2
+    CheckCircle2,
+    ArrowLeft
 } from 'lucide-react';
+import Link from 'next/link';
 
 export default function UserManagementPage() {
     const [users, setUsers] = useState<any[]>([]);
@@ -27,7 +28,7 @@ export default function UserManagementPage() {
     const [fullName, setFullName] = useState('');
     const [password, setPassword] = useState('');
     const [roleCode, setRoleCode] = useState('OPERATOR');
-    const [tenantId, setTenantId] = useState('00000000-0000-0000-0000-000000000001'); // Placeholder tenant
+    const [tenantId, setTenantId] = useState('00000000-0000-0000-0000-000000000001');
     const [creating, setCreating] = useState(false);
     const [success, setSuccess] = useState(false);
 
@@ -63,7 +64,6 @@ export default function UserManagementPage() {
                     setSuccess(false);
                     setIsModalOpen(false);
                     fetchUsers();
-                    // Clear form
                     setEmail('');
                     setFullName('');
                     setPassword('');
@@ -77,99 +77,148 @@ export default function UserManagementPage() {
     };
 
     return (
-        <div className="p-8 max-w-7xl mx-auto animate-in fade-in duration-500">
+        <div className="animate-fade-in">
             {/* Header section */}
-            <div className="flex justify-between items-end mb-10">
-                <div>
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-blue-500/10 rounded-lg">
-                            <Users className="text-blue-500" size={24} />
-                        </div>
-                        <h1 className="text-2xl font-black text-white tracking-tight">Gesti&oacute;n de Usuarios</h1>
-                    </div>
-                    <p className="text-gray-400 text-sm">Control de acceso institucional y gesti&oacute;n de identidades.</p>
-                </div>
+            <div className="section-header" style={{ marginBottom: '2rem' }}>
+                <Link href="/admin" style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', marginRight: '1rem' }}>
+                    <ArrowLeft size={20} />
+                </Link>
+                <Users className="text-primary" />
+                <h1 className="gradient-text" style={{ fontSize: '2rem', margin: 0 }}>Gestión de Usuarios</h1>
+            </div>
 
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem' }}>
+                <p style={{ color: 'var(--muted)', margin: 0, maxWidth: '600px' }}>
+                    Administre el acceso institucional y la gobernanza de identidades para el cumplimiento regulatorio.
+                </p>
                 <button
                     onClick={() => setIsModalOpen(true)}
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all active:scale-95 shadow-lg shadow-blue-600/10"
+                    style={{
+                        background: 'var(--primary)',
+                        color: 'white',
+                        border: 'none',
+                        padding: '0.75rem 1.25rem',
+                        borderRadius: '10px',
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)'
+                    }}
                 >
                     <Plus size={18} /> NUEVO USUARIO
                 </button>
             </div>
 
-            {/* Stats / Filters Bar */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                <div className="bg-gray-900/40 border border-white/5 p-4 rounded-2xl">
-                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Total Usuarios</p>
-                    <p className="text-2xl font-bold text-white">{users.length}</p>
+            {/* Stats Bar */}
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '1.5rem',
+                marginBottom: '2rem'
+            }}>
+                <div className="glass-card" style={{ padding: '1.25rem' }}>
+                    <p style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05rem', marginBottom: '0.5rem' }}>Total Usuarios</p>
+                    <p style={{ fontSize: '1.75rem', fontWeight: 900, color: 'var(--foreground)', margin: 0 }}>{users.length}</p>
                 </div>
-                <div className="bg-gray-900/40 border border-white/5 p-4 rounded-2xl">
-                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Administradores</p>
-                    <p className="text-2xl font-bold text-blue-500">{users.filter(u => u.roleCode === 'ADMIN').length}</p>
+                <div className="glass-card" style={{ padding: '1.25rem' }}>
+                    <p style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05rem', marginBottom: '0.5rem' }}>Administradores</p>
+                    <p style={{ fontSize: '1.75rem', fontWeight: 900, color: 'var(--primary)', margin: 0 }}>{users.filter(u => u.roleCode === 'ADMIN').length}</p>
                 </div>
-                <div className="md:col-span-2 bg-gray-900/40 border border-white/5 p-2 rounded-2xl flex items-center">
-                    <Search size={18} className="text-gray-500 ml-3" />
+                <div className="glass-card" style={{ padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gridColumn: 'span 2' }}>
+                    <Search size={18} style={{ color: 'var(--muted)', marginRight: '1rem' }} />
                     <input
                         type="text"
                         placeholder="Buscar por nombre o correo..."
-                        className="bg-transparent border-none outline-none text-white text-sm w-full px-3 placeholder:text-gray-600"
+                        style={{
+                            background: 'transparent',
+                            border: 'none',
+                            outline: 'none',
+                            color: 'var(--foreground)',
+                            width: '100%',
+                            fontSize: '0.9rem'
+                        }}
                     />
                 </div>
             </div>
 
             {/* Table */}
-            <div className="bg-gray-900/40 border border-white/5 rounded-[2rem] overflow-hidden backdrop-blur-sm">
-                <table className="w-full text-left">
+            <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
-                        <tr className="border-b border-white/5 bg-white/2">
-                            <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest text-center w-16">Status</th>
-                            <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Usuario</th>
-                            <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Rol</th>
-                            <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Fecha Registro</th>
-                            <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Acciones</th>
+                        <tr style={{ borderBottom: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.02)' }}>
+                            <th style={{ padding: '1rem 1.5rem', textAlign: 'center', fontSize: '0.7rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', width: '80px' }}>Status</th>
+                            <th style={{ padding: '1rem 1.5rem', textAlign: 'left', fontSize: '0.7rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase' }}>Usuario</th>
+                            <th style={{ padding: '1rem 1.5rem', textAlign: 'left', fontSize: '0.7rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase' }}>Rol</th>
+                            <th style={{ padding: '1rem 1.5rem', textAlign: 'left', fontSize: '0.7rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase' }}>Registro</th>
+                            <th style={{ padding: '1rem 1.5rem', textAlign: 'right', fontSize: '0.7rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase' }}>Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
                         {loading ? (
                             Array(3).fill(0).map((_, i) => (
-                                <tr key={i} className="animate-pulse">
-                                    <td colSpan={5} className="px-6 py-8 border-b border-white/5">
-                                        <div className="h-4 bg-white/5 rounded w-full"></div>
-                                    </td>
+                                <tr key={i} style={{ borderBottom: '1px solid var(--glass-border)' }}>
+                                    <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--muted)', fontSize: '0.8rem' }}>Cargando datos...</td>
                                 </tr>
                             ))
+                        ) : users.length === 0 ? (
+                            <tr>
+                                <td colSpan={5} style={{ padding: '3rem', textAlign: 'center', color: 'var(--muted)' }}>No se encontraron usuarios registrados.</td>
+                            </tr>
                         ) : users.map((user) => (
-                            <tr key={user.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
-                                <td className="px-6 py-4 text-center">
-                                    {user.isActive ? (
-                                        <div className="w-2 h-2 bg-emerald-500 rounded-full mx-auto shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                                    ) : (
-                                        <div className="w-2 h-2 bg-gray-500 rounded-full mx-auto" />
-                                    )}
+                            <tr key={user.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
+                                <td style={{ padding: '1rem 1.5rem', textAlign: 'center' }}>
+                                    <div style={{
+                                        width: '8px',
+                                        height: '8px',
+                                        borderRadius: '50%',
+                                        margin: '0 auto',
+                                        background: user.isActive ? '#10b981' : '#64748b',
+                                        boxShadow: user.isActive ? '0 0 8px #10b981' : 'none'
+                                    }} />
                                 </td>
-                                <td className="px-6 py-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600/20 to-purple-600/20 flex items-center justify-center border border-white/5 text-blue-500 font-bold uppercase">
+                                <td style={{ padding: '1rem 1.5rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                        <div style={{
+                                            width: '36px',
+                                            height: '36px',
+                                            borderRadius: '10px',
+                                            background: 'linear-gradient(135deg, rgba(59,130,246,0.1), rgba(139,92,246,0.1))',
+                                            border: '1px solid var(--glass-border)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: 'var(--primary)',
+                                            fontWeight: 'bold',
+                                            fontSize: '0.9rem'
+                                        }}>
                                             {user.fullName?.[0] || user.email[0]}
                                         </div>
                                         <div>
-                                            <p className="text-sm font-bold text-white">{user.fullName || 'Sin nombre'}</p>
-                                            <p className="text-xs text-gray-500">{user.email}</p>
+                                            <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 'bold' }}>{user.fullName || 'Sin nombre'}</p>
+                                            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--muted)' }}>{user.email}</p>
                                         </div>
                                     </div>
                                 </td>
-                                <td className="px-6 py-4">
-                                    <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border ${user.roleCode === 'ADMIN' ? 'text-blue-500 border-blue-500/20 bg-blue-500/5' : 'text-gray-400 border-white/5'
-                                        }`}>
+                                <td style={{ padding: '1rem 1.5rem' }}>
+                                    <span style={{
+                                        fontSize: '0.65rem',
+                                        fontWeight: 900,
+                                        padding: '0.2rem 0.5rem',
+                                        borderRadius: '6px',
+                                        border: '1px solid var(--glass-border)',
+                                        color: user.roleCode === 'ADMIN' ? 'var(--primary)' : 'var(--muted)',
+                                        background: 'rgba(255,255,255,0.02)'
+                                    }}>
                                         {user.roleCode}
                                     </span>
                                 </td>
-                                <td className="px-6 py-4 text-xs text-gray-500">
-                                    {new Date(user.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                <td style={{ padding: '1rem 1.5rem', fontSize: '0.8rem', color: 'var(--muted)' }}>
+                                    {new Date(user.createdAt).toLocaleDateString()}
                                 </td>
-                                <td className="px-6 py-4 text-right">
-                                    <button className="p-2 hover:bg-white/5 rounded-lg text-gray-500 hover:text-white transition-colors">
+                                <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
+                                    <button style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}>
                                         <MoreVertical size={16} />
                                     </button>
                                 </td>
@@ -181,105 +230,114 @@ export default function UserManagementPage() {
 
             {/* Modal de Creación */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-xl bg-black/60 animate-in fade-in duration-300">
-                    <div className="bg-gray-900 border border-white/10 w-full max-w-xl rounded-[2.5rem] shadow-2xl relative overflow-hidden">
-                        <div className="p-8 sm:p-10">
-                            <button
-                                onClick={() => setIsModalOpen(false)}
-                                className="absolute top-8 right-8 text-gray-500 hover:text-white transition-colors"
-                            >
-                                <X size={24} />
-                            </button>
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    zIndex: 1000,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'rgba(0,0,0,0.7)',
+                    backdropFilter: 'blur(10px)'
+                }}>
+                    <div className="glass-card" style={{ width: '100%', maxWidth: '500px', padding: '2.5rem', position: 'relative' }}>
+                        <button
+                            onClick={() => setIsModalOpen(false)}
+                            style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}
+                        >
+                            <X size={20} />
+                        </button>
 
-                            <div className="flex items-center gap-4 mb-8">
-                                <div className="p-3 bg-blue-500/10 rounded-2xl">
-                                    <UserPlus className="text-blue-500" size={28} />
-                                </div>
-                                <h2 className="text-2xl font-black text-white tracking-tight">Registrar Colaborador</h2>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+                            <div style={{ padding: '0.75rem', background: 'rgba(59,130,246,0.1)', borderRadius: '12px', color: 'var(--primary)' }}>
+                                <UserPlus size={24} />
                             </div>
-
-                            {success ? (
-                                <div className="py-12 flex flex-col items-center animate-in zoom-in duration-500">
-                                    <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mb-4 border border-emerald-500/30">
-                                        <CheckCircle2 size={32} className="text-emerald-500" />
-                                    </div>
-                                    <p className="text-xl font-bold text-white mb-2">Usuario Creado</p>
-                                    <p className="text-gray-500 text-sm">Sincronizando con el directorio central...</p>
-                                </div>
-                            ) : (
-                                <form onSubmit={handleCreateUser} className="space-y-6">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Nombre Completo</label>
-                                            <input
-                                                required
-                                                value={fullName}
-                                                onChange={(e) => setFullName(e.target.value)}
-                                                className="w-full bg-gray-800/50 border border-white/5 p-3.5 rounded-xl text-white outline-none focus:border-blue-500 transition-colors"
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">ID Tenant</label>
-                                            <input
-                                                required
-                                                value={tenantId}
-                                                onChange={(e) => setTenantId(e.target.value)}
-                                                className="w-full bg-gray-800/50 border border-white/5 p-3.5 rounded-xl text-white outline-none focus:border-blue-500 transition-colors placeholder:text-gray-700"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Correo Corporativo</label>
-                                        <div className="relative">
-                                            <Mail className="absolute left-4 top-4 text-gray-500" size={18} />
-                                            <input
-                                                type="email"
-                                                required
-                                                value={email}
-                                                onChange={(e) => setEmail(e.target.value)}
-                                                className="w-full bg-gray-800/50 border border-white/5 py-4 pl-12 pr-4 rounded-xl text-white outline-none focus:border-blue-500 transition-colors"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Tipo de Rol</label>
-                                            <select
-                                                value={roleCode}
-                                                onChange={(e) => setRoleCode(e.target.value)}
-                                                className="w-full bg-gray-800/50 border border-white/5 p-3.5 rounded-xl text-white outline-none focus:border-blue-500 transition-colors appearance-none"
-                                            >
-                                                <option value="ADMIN">Administrador</option>
-                                                <option value="OPERATOR">Operador</option>
-                                                <option value="AUDITOR">Auditor</option>
-                                            </select>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest pl-1">Clave Provisional</label>
-                                            <div className="relative">
-                                                <Lock className="absolute left-4 top-4 text-gray-500" size={18} />
-                                                <input
-                                                    type="password"
-                                                    required
-                                                    value={password}
-                                                    onChange={(e) => setPassword(e.target.value)}
-                                                    className="w-full bg-gray-800/50 border border-white/5 py-3.5 pl-12 pr-4 rounded-xl text-white outline-none focus:border-blue-500 transition-colors"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <button
-                                        disabled={creating}
-                                        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl shadow-xl shadow-blue-600/20 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
-                                    >
-                                        {creating ? <Loader2 className="animate-spin" /> : 'CONFIRMAR ALTA DE USUARIO'}
-                                    </button>
-                                </form>
-                            )}
+                            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: 0 }}>Nuevo Usuario</h2>
                         </div>
+
+                        {success ? (
+                            <div style={{ textAlign: 'center', padding: '3rem 0' }}>
+                                <CheckCircle2 size={48} style={{ color: '#10b981', marginBottom: '1rem' }} />
+                                <p style={{ fontWeight: 'bold', fontSize: '1.25rem' }}>Usuario Registrado</p>
+                                <p style={{ color: 'var(--muted)' }}>Actualizando base de datos centralizada...</p>
+                            </div>
+                        ) : (
+                            <form onSubmit={handleCreateUser} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <div>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem' }}>Nombre</label>
+                                        <input
+                                            required
+                                            value={fullName}
+                                            onChange={(e) => setFullName(e.target.value)}
+                                            style={{ width: '100%', padding: '0.75rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'white' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem' }}>Tenant ID</label>
+                                        <input
+                                            required
+                                            value={tenantId}
+                                            onChange={(e) => setTenantId(e.target.value)}
+                                            style={{ width: '100%', padding: '0.75rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'white' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem' }}>Email Corporativo</label>
+                                    <input
+                                        type="email"
+                                        required
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        style={{ width: '100%', padding: '0.75rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'white' }}
+                                    />
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <div>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem' }}>Rol</label>
+                                        <select
+                                            value={roleCode}
+                                            onChange={(e) => setRoleCode(e.target.value)}
+                                            style={{ width: '100%', padding: '0.75rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'white' }}
+                                        >
+                                            <option value="ADMIN">Administrador</option>
+                                            <option value="OPERATOR">Operador</option>
+                                            <option value="AUDITOR">Auditor</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem' }}>Contraseña</label>
+                                        <input
+                                            type="password"
+                                            required
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            style={{ width: '100%', padding: '0.75rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'white' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <button
+                                    disabled={creating}
+                                    style={{
+                                        background: 'var(--primary)',
+                                        color: 'white',
+                                        border: 'none',
+                                        padding: '1rem',
+                                        borderRadius: '12px',
+                                        fontWeight: 'bold',
+                                        cursor: 'pointer',
+                                        marginTop: '1rem',
+                                        opacity: creating ? 0.7 : 1
+                                    }}
+                                >
+                                    {creating ? 'PROCESANDO...' : 'REGISTRAR USUARIO'}
+                                </button>
+                            </form>
+                        )}
                     </div>
                 </div>
             )}

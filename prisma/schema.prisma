@@ -374,11 +374,12 @@ model CorpusModelRun {
 }
 
 model CorpusModelRunScore {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  modelRunId   String   @map("model_run_id") @db.Uuid
-  scoreValue   Decimal  @map("score_value")
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  modelRunId     String   @map("model_run_id") @db.Uuid
+  scoreValue     Decimal  @map("score_value")
+  readinessScore Decimal? @map("readiness_score") @db.Decimal(5, 2)
 
-  modelRun     CorpusModelRun @relation(fields: [modelRunId], references: [id])
+  modelRun       CorpusModelRun @relation(fields: [modelRunId], references: [id])
 
   @@map("corpus_model_run_score")
 }
@@ -460,25 +461,65 @@ model CorpusParameterObligationWeight {
 
 // --- MISC / AUDIT ---
 
+model CorpusAuditFindingType {
+  id                      Int      @id @db.SmallInt
+  code                    String   @unique
+  name                    String
+  description             String?
+  defaultSeverity        Int      @default(3) @map("default_severity") @db.SmallInt
+  defaultExposureFloor    Decimal  @default(0.0000) @map("default_exposure_floor") @db.Decimal(6, 4)
+  defaultReadinessPenalty Int      @default(0) @map("default_readiness_penalty")
+  defaultOwnerRole        String?  @map("default_owner_role")
+  defaultDueDays          Int?     @map("default_due_days")
+  isActive                Boolean  @default(true) @map("is_active")
+  sortOrder               Int      @default(0) @map("sort_order")
+
+  findings                CorpusAuditFinding[]
+
+  @@map("corpus_catalog_audit_finding_type")
+}
+
 model CorpusAuditFinding {
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId          String   @map("tenant_id") @db.Uuid
   code              String
   title             String
   description       String?
-  severityId        Int      @map("severity_id")
-  statusId          Int      @map("status_id")
+  
+  eventTypeId       Int      @map("event_type_id") @db.SmallInt
+  severity          Int      @default(3) @db.SmallInt // 1-5
+  status            String   @default("open") // open|closed|suppressed
+  
+  exposureFloor      Decimal  @default(0.0000) @map("exposure_floor") @db.Decimal(6, 4)
+  readinessPenalty   Int      @default(0) @map("readiness_penalty")
+  ownerRole          String?  @map("owner_role")
+  dueDate            DateTime? @map("due_date") @db.Date
+  
+  rootCause          String?  @map("root_cause")
+  evidenceLinks      Json     @default("[]") @map("evidence_links")
+  dedupeKey          String?  @unique @map("dedupe_key")
+  
+  severityId        Int      @map("severity_id") // Keep for legacy/catalog ref if needed
+  statusId          Int      @map("status_id")   // Keep for legacy/catalog ref if needed
+  
   evaluationId      String?  @map("evaluation_id") @db.Uuid
   controlId         String?  @map("control_id") @db.Uuid
   obligationId      String?  @map("obligation_id") @db.Uuid
   riskId            String?  @map("risk_id") @db.Uuid
   testControlRunId  String?  @map("test_control_run_id") @db.Uuid
+  
   createdAt         DateTime @default(now()) @map("created_at")
   createdBy         String?  @map("created_by") @db.Uuid
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
+  updatedBy         String?  @map("updated_by") @db.Uuid
   closedAt          DateTime? @map("closed_at")
   closedBy          String?  @map("closed_by") @db.Uuid
   metadata          Json?    @default("{}")
 
+  eventType         CorpusAuditFindingType @relation(fields: [eventTypeId], references: [id])
+
+  @@index([evaluationId, status])
+  @@index([evaluationId, severity])
   @@map("corpus_audit_finding")
 }
 

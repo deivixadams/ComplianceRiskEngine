@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS corpus_model_run (
 CREATE TABLE IF NOT EXISTS corpus_model_run_score (
     run_id uuid PRIMARY KEY REFERENCES corpus_model_run(id),
     score_total numeric(10,4),
+    readiness_score numeric(5,2),
     e_base numeric(14,6),
     e_conc numeric(14,6),
     e_sys numeric(14,6),

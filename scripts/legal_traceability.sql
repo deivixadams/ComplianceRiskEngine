@@ -2,15 +2,44 @@
 -- SCHEMA: Legal Traceability & Freeze Enforcement (CRE)
 -- -----------------------------------------------------------------------------
 
--- 1. AUDIT FINDINGS TABLE
+-- 1. AUDIT FINDING TYPES CATALOG
+CREATE TABLE IF NOT EXISTS corpus.corpus_catalog_audit_finding_type (
+    id SMALLINT PRIMARY KEY,
+    code TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    default_severity SMALLINT NOT NULL DEFAULT 3,
+    default_exposure_floor NUMERIC(6,4) NOT NULL DEFAULT 0.0000,
+    default_readiness_penalty INTEGER NOT NULL DEFAULT 0,
+    default_owner_role TEXT,
+    default_due_days INTEGER,
+    is_active BOOLEAN DEFAULT true,
+    sort_order INTEGER DEFAULT 0
+);
+
+-- 2. AUDIT FINDINGS TABLE
 CREATE TABLE IF NOT EXISTS corpus.corpus_audit_finding (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL,
     code TEXT NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
-    severity_id INTEGER NOT NULL REFERENCES corpus.corpus_catalog_criticality(id),
-    status_id INTEGER NOT NULL REFERENCES corpus.corpus_catalog_status(id),
+    
+    event_type_id SMALLINT NOT NULL REFERENCES corpus.corpus_catalog_audit_finding_type(id),
+    severity SMALLINT NOT NULL CHECK (severity >= 1 AND severity <= 5),
+    status TEXT NOT NULL CHECK (status IN ('open', 'closed', 'suppressed')),
+    
+    exposure_floor NUMERIC(6,4) NOT NULL DEFAULT 0.0000,
+    readiness_penalty INTEGER NOT NULL DEFAULT 0,
+    owner_role TEXT,
+    due_date DATE,
+    
+    root_cause TEXT,
+    evidence_links JSONB NOT NULL DEFAULT '[]',
+    dedupe_key TEXT UNIQUE,
+    
+    severity_id INTEGER, -- Legacy compatibility
+    status_id INTEGER,   -- Legacy compatibility
     
     evaluation_id UUID REFERENCES corpus.corpus_evaluation(id),
     control_id UUID REFERENCES corpus.corpus_control(id),
@@ -20,11 +49,16 @@ CREATE TABLE IF NOT EXISTS corpus.corpus_audit_finding (
     
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by UUID,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_by UUID,
     closed_at TIMESTAMP WITH TIME ZONE,
     closed_by UUID,
     
     metadata JSONB DEFAULT '{}'
 );
+
+CREATE INDEX IF NOT EXISTS idx_finding_eval_status ON corpus.corpus_audit_finding (evaluation_id, status);
+CREATE INDEX IF NOT EXISTS idx_finding_eval_severity ON corpus.corpus_audit_finding (evaluation_id, severity);
 
 -- 2. AUDIT LOG TABLE
 CREATE TABLE IF NOT EXISTS corpus.corpus_audit_log (

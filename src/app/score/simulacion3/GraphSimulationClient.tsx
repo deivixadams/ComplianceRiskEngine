@@ -176,7 +176,7 @@ const LAYOUT_OPTIONS: Array<{ value: LayoutType; label: string }> = [
 const NODE_TYPE_COLORS: Record<NodeType, string> = {
   LAW: '#0ea5e9',
   DOMAIN: '#06b6d4',
-  OBLIGATION: '#f59e0b',
+  OBLIGATION: '#facc15',
   RISK: '#ef4444',
   CONTROL: '#22c55e',
   TEST: '#14b8a6',
@@ -188,7 +188,7 @@ const NODE_TYPE_SHAPES: Record<NodeType, string> = {
   LAW: 'hexagon',
   DOMAIN: 'round-rectangle',
   OBLIGATION: 'rectangle',
-  RISK: 'diamond',
+  RISK: 'triangle',
   CONTROL: 'ellipse',
   TEST: 'triangle',
   EVIDENCE: 'pentagon',
@@ -196,12 +196,12 @@ const NODE_TYPE_SHAPES: Record<NodeType, string> = {
 };
 
 const EDGE_TYPE_COLORS: Record<string, string> = {
-  DOMAIN_TO_DOMAIN: '#0ea5e9',
-  DOMAIN_TO_OBLIGATION: '#06b6d4',
-  OBLIGATION_TO_OBLIGATION: '#a78bfa',
-  OBLIGATION_TO_RISK: '#f97316',
-  OBLIGATION_TO_CONTROL: '#38bdf8',
-  RISK_TO_CONTROL: '#f43f5e',
+  DOMAIN_TO_DOMAIN: '#ffffff',
+  DOMAIN_TO_OBLIGATION: '#ffffff',
+  OBLIGATION_TO_OBLIGATION: '#ffffff',
+  OBLIGATION_TO_RISK: '#ffffff',
+  OBLIGATION_TO_CONTROL: '#ffffff',
+  RISK_TO_CONTROL: '#ffffff',
 };
 
 const PRESET_BASE = {
@@ -593,15 +593,15 @@ function buildCytoscapeStylesheet() {
         label: 'data(vizLabel)',
         color: '#e2ecff',
         'font-size': 'data(vizFontSize)',
-        'font-weight': 700,
+        'font-weight': 600,
         'text-wrap': 'wrap',
-        'text-max-width': 150,
+        'text-max-width': 'data(vizTextMaxWidth)',
         'text-valign': 'center',
         'text-halign': 'center',
         'text-outline-width': 1,
-        'text-outline-color': 'rgba(2, 6, 23, 0.74)',
-        width: 'data(vizSize)',
-        height: 'data(vizSize)',
+        'text-outline-color': 'rgba(2, 6, 23, 0.82)',
+        width: 'data(vizNodeWidth)',
+        height: 'data(vizNodeHeight)',
         'border-width': 'data(vizBorderWidth)',
         'border-color': 'data(vizBorderColor)',
         'overlay-opacity': 0,
@@ -705,7 +705,6 @@ export default function GraphSimulationClient() {
     if (structuralFilters.dependencyRoots === 'only') params.set('dependency_root', 'true');
     if (structuralFilters.primaryEdges === 'only') params.set('primary', 'true');
     if (structuralFilters.mandatoryEdges === 'only') params.set('mandatory', 'true');
-    if (criticalityMin > 0) params.set('criticality_min', String(criticalityMin));
 
     setLoading(true);
     setError(null);
@@ -809,6 +808,9 @@ export default function GraphSimulationClient() {
     }
 
     if (criticalityMin > 0) {
+      const nodesBeforeCriticality = nodes;
+      const edgesBeforeCriticality = edges;
+
       const seedIds = new Set(
         nodes
           .filter((node) => {
@@ -837,6 +839,13 @@ export default function GraphSimulationClient() {
           const target = String(edge.element_data.target || '');
           return nodeIds.has(source) && nodeIds.has(target);
         });
+      }
+
+      // Prevent overly aggressive criticidad presets from collapsing the graph into isolated boxes.
+      if (nodes.length < 8 || edges.length < 6) {
+        nodes = nodesBeforeCriticality;
+        edges = edgesBeforeCriticality;
+        nodeIds = new Set(nodes.map((node) => getElementId(node)));
       }
     }
 
@@ -936,16 +945,23 @@ export default function GraphSimulationClient() {
       const badges: string[] = [];
       if (hardGate) badges.push('HG');
       if (dependencyRoot) badges.push('DR');
+      const baseSize = Math.max(32, Math.min(94, 30 + criticality * 7 + (hardGate ? 8 : 0) + (dependencyRoot ? 6 : 0)));
+      const isObligation = nodeType === 'OBLIGATION';
+      const nodeWidth = isObligation ? Math.max(58, baseSize * 1.45) : baseSize;
+      const nodeHeight = isObligation ? Math.max(34, baseSize * 0.82) : baseSize;
+      const textMaxWidth = Math.max(44, Math.round(nodeWidth - 14));
 
       return {
         data: {
           ...data,
           vizColor: NODE_TYPE_COLORS[nodeType],
           vizShape: NODE_TYPE_SHAPES[nodeType],
-          vizSize: Math.max(32, Math.min(94, 30 + criticality * 7 + (hardGate ? 8 : 0) + (dependencyRoot ? 6 : 0))),
+          vizNodeWidth: nodeWidth,
+          vizNodeHeight: nodeHeight,
           vizFillOpacity: Math.max(0.48, opacity),
           vizOpacity: Math.min(1, opacity + (structuralBoost ? 0.15 : 0)),
-          vizFontSize: shouldLabel ? 10 : 8,
+          vizFontSize: shouldLabel ? (isObligation ? 8 : 7) : 7,
+          vizTextMaxWidth: textMaxWidth,
           vizBorderWidth: hardGate ? 5 : dependencyRoot ? 4 : Math.max(2, Math.min(4, 2 + degree * 0.15)),
           vizBorderColor: hardGate ? '#ef4444' : dependencyRoot ? '#f59e0b' : '#dbeafe',
           vizLabel: shouldLabel ? `${getElementLabel(data)}${badges.length ? ` [${badges.join('|')}]` : ''}` : '',
@@ -965,17 +981,17 @@ export default function GraphSimulationClient() {
         (structuralFilters.mandatoryEdges === 'highlight' && mandatory);
       const shouldLabel = mandatory || primary || highlightedByType;
 
-      const baseWidth = Math.max(1.6, Math.min(7, weight * 1.25));
+      const baseWidth = Math.max(2.2, Math.min(7.5, weight * 1.35));
       const width = mandatory ? Math.max(4.4, baseWidth + 1.4) : primary ? Math.max(3.4, baseWidth + 0.8) : baseWidth;
 
-      let opacity = 0.22;
-      if (highlightedByType || highlightedByStructural || mandatory || primary) opacity = 0.95;
-      else if (!graphEmphasisRules.dimNonRelevant) opacity = 0.6;
+      let opacity = 0.58;
+      if (highlightedByType || highlightedByStructural || mandatory || primary) opacity = 0.98;
+      else if (!graphEmphasisRules.dimNonRelevant) opacity = 0.78;
 
       return {
         data: {
           ...data,
-          vizColor: mandatory ? '#f59e0b' : primary ? '#38bdf8' : EDGE_TYPE_COLORS[edgeType] || '#64748b',
+          vizColor: EDGE_TYPE_COLORS[edgeType] || '#ffffff',
           vizWidth: width,
           vizOpacity: opacity,
           vizLineStyle: mandatory || primary || highlightedByType ? 'solid' : 'dashed',
@@ -1397,6 +1413,24 @@ export default function GraphSimulationClient() {
                     {option.label}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            <div className={styles.controlBlock}>
+              <div className={styles.controlLabel}>Leyenda visual</div>
+              <div className={styles.legendList}>
+                <div className={styles.legendItem}>
+                  <span className={`${styles.legendSymbol} ${styles.legendObligation}`}>▭</span>
+                  <span className={styles.legendText}>OBLIGATION = Amarillo Rectangulo</span>
+                </div>
+                <div className={styles.legendItem}>
+                  <span className={`${styles.legendSymbol} ${styles.legendRisk}`}>▲</span>
+                  <span className={styles.legendText}>RISK = Rojo Triangulo</span>
+                </div>
+                <div className={styles.legendItem}>
+                  <span className={`${styles.legendSymbol} ${styles.legendControl}`}>●</span>
+                  <span className={styles.legendText}>CONTROL = Verde Circulo</span>
+                </div>
               </div>
             </div>
           </div>

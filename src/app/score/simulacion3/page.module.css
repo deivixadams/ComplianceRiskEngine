@@ -319,7 +319,7 @@
 .filterControlsRow {
   margin-top: 10px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -435,6 +435,48 @@
   gap: 6px;
   color: #d4e7ff;
   font-size: 11px;
+}
+
+.legendList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 10px;
+  background: rgba(8, 14, 30, 0.72);
+  padding: 7px 8px;
+}
+
+.legendSymbol {
+  min-width: 16px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.legendObligation {
+  color: #facc15;
+}
+
+.legendRisk {
+  color: #ef4444;
+}
+
+.legendControl {
+  color: #22c55e;
+}
+
+.legendText {
+  color: #dceaff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .guardrail,
@@ -677,6 +719,10 @@
 }
 
 @media (max-width: 1500px) {
+  .filterControlsRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .panelHorizontal {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

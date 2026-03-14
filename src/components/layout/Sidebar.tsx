@@ -46,6 +46,8 @@ const institutionalMenu: MenuSection[] = [
             { icon: BarChart3, label: "Dashboard", href: "/score/dashboard", tooltip: "Vista ejecutiva unificada del score." },
             { icon: BarChart3, label: "Score de fragilidad", href: "/score/score", tooltip: "Resumen general del score." },
             { icon: Activity, label: "Simulación", href: "/score/simulacion", tooltip: "Simulaciones del motor e escenarios." },
+            { icon: Activity, label: "Sumulacion2", href: "/score/simulacion2", tooltip: "Nueva experiencia de simulación guiada por preguntas." },
+            { icon: Activity, label: "Simulación 3", href: "/score/simulacion3", tooltip: "Clon independiente de Simulacion2 para reingeniería." },
             { icon: ShieldCheck, label: "Auditoría Continua", href: "/validacion/pruebas", tooltip: "Ejecución de pruebas e resultados." },
             { icon: TrendingUp, label: "Benchmark", href: "/score/dashboard", tooltip: "Comparativos y referencias externas." },
             { icon: Network, label: "Corpus", href: "/modelo/corpus", tooltip: "Corpus regulatorio estructurado." },

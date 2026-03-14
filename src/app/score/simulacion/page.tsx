@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import GraphSimulationClient from './GraphSimulationClient';
 
 export default function ScoreSimulacionPage() {
-  redirect('/score/motor');
+  return <GraphSimulationClient />;
 }

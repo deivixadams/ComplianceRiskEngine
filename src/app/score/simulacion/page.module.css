@@ -91,6 +91,7 @@
 }
 
 .primaryButton,
+.dangerButton,
 .ghostButton,
 .segmentButton {
   display: inline-flex;
@@ -114,6 +115,13 @@
   box-shadow: 0 16px 30px rgba(14, 165, 233, 0.24);
 }
 
+.dangerButton {
+  padding: 12px 14px;
+  color: #fee2e2;
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.96), rgba(127, 29, 29, 0.92));
+  box-shadow: 0 16px 30px rgba(220, 38, 38, 0.24);
+}
+
 .primaryButton:disabled {
   cursor: not-allowed;
   opacity: 0.45;
@@ -128,6 +136,7 @@
 }
 
 .primaryButton:hover:not(:disabled),
+.dangerButton:hover,
 .ghostButton:hover,
 .segmentButton:hover {
   transform: translateY(-1px);

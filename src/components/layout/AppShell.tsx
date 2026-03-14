@@ -7,8 +7,9 @@ import Topbar from './Topbar';
 export default function AppShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const isLogin = pathname === '/login';
+    const isImmersiveSimulation = pathname.startsWith('/score/simulacion');
 
-    if (isLogin) {
+    if (isLogin || isImmersiveSimulation) {
         return <>{children}</>;
     }
 

@@ -103,7 +103,8 @@
 .ghostButton,
 .modeButton,
 .layoutButton,
-.panelTab {
+.panelTab,
+.questionCard {
   border-radius: 12px;
   border: 1px solid transparent;
   cursor: pointer;
@@ -142,7 +143,8 @@
 .ghostButton:hover,
 .modeButton:hover,
 .layoutButton:hover,
-.panelTab:hover {
+.panelTab:hover,
+.questionCard:hover {
   transform: translateY(-1px);
 }
 
@@ -193,7 +195,11 @@
 }
 
 .workspace {
-  display: block;
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  grid-template-areas: "filters main";
+  gap: 10px;
+  align-items: start;
   flex: 1;
   min-height: 0;
 }
@@ -206,11 +212,11 @@
 }
 
 .filtersCard {
-  border-radius: 18px;
-  padding: 14px;
+  grid-area: filters;
 }
 
 .mainColumn {
+  grid-area: main;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -244,94 +250,47 @@
   color: #7dd3fc;
 }
 
-.driverCategoryGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.driverCategoryCard {
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 12px;
-  background: rgba(7, 13, 28, 0.58);
-  padding: 10px;
-  min-width: 0;
-}
-
-.driverCategoryTitle {
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.13em;
-  color: #7dd3fc;
-  margin-bottom: 8px;
-}
-
-.driverQuestionList {
-  max-height: 168px;
+.questionList {
+  max-height: 220px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding-right: 2px;
+  gap: 8px;
+  padding-right: 4px;
 }
 
-.driverQuestionButton {
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  background: rgba(8, 14, 30, 0.74);
-  color: #dceaff;
+.questionCard {
   text-align: left;
-  padding: 8px;
+  background: rgba(8, 14, 28, 0.72);
+  border-color: rgba(148, 163, 184, 0.14);
+  padding: 10px;
+}
+
+.questionActive {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(30, 64, 175, 0.28));
+  border-color: rgba(125, 211, 252, 0.45);
+}
+
+.questionText {
+  font-size: 12px;
+  color: #e2ecff;
+  line-height: 1.45;
+}
+
+.questionMeta {
+  margin-top: 6px;
   display: flex;
   gap: 6px;
-  align-items: flex-start;
-  font-size: 12px;
-  line-height: 1.35;
-  min-height: 50px;
-  cursor: pointer;
-  transition: all 140ms ease;
-}
-
-.driverQuestionButton:hover {
-  transform: translateY(-1px);
-  border-color: rgba(125, 211, 252, 0.34);
-}
-
-.driverQuestionActive {
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.24), rgba(30, 64, 175, 0.3));
-  border-color: rgba(125, 211, 252, 0.5);
-}
-
-.driverQuestionOrder {
-  color: #7dd3fc;
-  font-weight: 800;
-  min-width: 20px;
-}
-
-.driverQuestionText {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.filterControlsRow {
-  margin-top: 10px;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #9dc2e8;
 }
 
 .controlBlock {
-  margin-top: 0;
+  margin-top: 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  border-radius: 12px;
-  background: rgba(7, 13, 28, 0.58);
-  padding: 10px;
 }
 
 .searchBox {
@@ -404,9 +363,16 @@
   font-size: 11px;
 }
 
+.advancedArea {
+  margin-top: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  padding: 10px;
+  background: rgba(7, 13, 27, 0.68);
+}
+
 .layoutOptions {
   display: flex;
-  flex-wrap: wrap;
   gap: 6px;
 }
 
@@ -425,7 +391,7 @@
 .nodeVisibility {
   margin-top: 8px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -435,48 +401,6 @@
   gap: 6px;
   color: #d4e7ff;
   font-size: 11px;
-}
-
-.legendList {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.legendItem {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  border-radius: 10px;
-  background: rgba(8, 14, 30, 0.72);
-  padding: 7px 8px;
-}
-
-.legendSymbol {
-  min-width: 16px;
-  text-align: center;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.legendObligation {
-  color: #facc15;
-}
-
-.legendRisk {
-  color: #ef4444;
-}
-
-.legendControl {
-  color: #22c55e;
-}
-
-.legendText {
-  color: #dceaff;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.2;
 }
 
 .guardrail,
@@ -499,7 +423,7 @@
 }
 
 .graphCard {
-  height: clamp(1208px, 124vh, 1808px);
+  height: clamp(604px, 62vh, 904px);
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -536,48 +460,6 @@
   overflow: hidden;
   position: relative;
   z-index: 2;
-}
-
-.metadataList {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  overflow: auto;
-  min-height: 0;
-  max-height: 320px;
-  padding-right: 4px;
-}
-
-.metadataCard {
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  border-radius: 10px;
-  background: rgba(7, 13, 28, 0.76);
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.metadataRow {
-  display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-}
-
-.metadataRow span {
-  color: #7dd3fc;
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: none;
-  letter-spacing: 0.02em;
-}
-
-.metadataRow strong {
-  color: #dce9ff;
-  font-size: 12px;
-  font-weight: 600;
-  word-break: break-word;
 }
 
 .panelTabs {
@@ -761,8 +643,8 @@
 }
 
 @media (max-width: 1500px) {
-  .filterControlsRow {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .workspace {
+    grid-template-columns: 280px minmax(0, 1fr);
   }
 
   .panelHorizontal {
@@ -788,13 +670,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .filterControlsRow {
+  .workspace {
     grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  .driverCategoryGrid {
-    grid-template-columns: 1fr;
+    grid-template-areas: "filters" "main";
+    min-height: auto;
   }
 
   .mainColumn {
@@ -809,18 +688,10 @@
   }
 
   .graphCard {
-    min-height: 1000px;
+    min-height: 500px;
   }
 
   .panelHorizontal {
-    grid-template-columns: 1fr;
-  }
-
-  .nodeVisibility {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .metadataRow {
     grid-template-columns: 1fr;
   }
 }

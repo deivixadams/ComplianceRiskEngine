@@ -20,7 +20,9 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  XCircle,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import styles from './page.module.css';
 
 type GraphViewRow = {
@@ -172,6 +174,7 @@ function toVizEdge(element: GraphViewRow): CytoscapeElementDefinition {
 }
 
 export default function GraphSimulationClient() {
+  const router = useRouter();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const cyRef = useRef<CytoscapeCore | null>(null);
   const [graph, setGraph] = useState<GraphResponse | null>(null);
@@ -268,7 +271,8 @@ export default function GraphSimulationClient() {
 
     const renderGraph = async () => {
       if (!containerRef.current) return;
-      const { default: cytoscape } = (await import('cytoscape')) as CytoscapeModule;
+      const cytoscapeImport = (await import('cytoscape')) as any;
+      const cytoscape = (cytoscapeImport.default ?? cytoscapeImport) as any;
       if (!mounted || !containerRef.current) return;
 
       cyRef.current?.destroy();
@@ -396,8 +400,7 @@ export default function GraphSimulationClient() {
             <div className={styles.eyebrow}>graph simulation cockpit</div>
             <h1 className={styles.title}>Simulación estructural del CRE</h1>
             <p className={styles.subtitle}>
-              Explora el grafo semántico oficial del CRE directamente desde <strong>graph.cre_graph_view</strong>.
-              La UI consume nodos y aristas serializados, los filtra y los renderiza sin reconstruir la ontología.
+              Grafo heterogéneo multicapa: ley → dominio → obligación → riesgo → control → prueba → evidencia
             </p>
             <div className={styles.heroBadges}>
               <span className={styles.badge}><Layers3 size={14} /> {graph?.meta.counts.nodes ?? 0} nodos</span>
@@ -407,6 +410,14 @@ export default function GraphSimulationClient() {
           </div>
 
           <div className={styles.heroActions}>
+            <button
+              type="button"
+              className={styles.dangerButton}
+              onClick={() => router.push('/score/dashboard')}
+            >
+              <XCircle size={14} />
+              Cerrar graph
+            </button>
             <button type="button" className={styles.ghostButton} onClick={fitGraph}>
               <Maximize2 size={14} />
               Ajustar vista

@@ -13,7 +13,11 @@ import {
   Filter,
   GitBranch,
   Layers3,
+  Maximize2,
+  Minimize2,
+  Network,
   RefreshCw,
+  Sparkles,
   Target,
   TrendingUp,
   XCircle,
@@ -49,20 +53,6 @@ type QuestionId =
   | 'regulator_challenge_now'
   | 'fastest_exposure_reduction'
   | 'committee_first_view';
-type DriverCategoryId = 'fragility' | 'dependencies' | 'defense';
-
-type DriverQuestion = {
-  id: string;
-  order: number;
-  text: string;
-  presetId: QuestionId;
-};
-
-type DriverQuestionCategory = {
-  id: DriverCategoryId;
-  title: string;
-  questions: DriverQuestion[];
-};
 
 type GraphViewRow = {
   element_kind: 'node' | 'edge';
@@ -93,8 +83,8 @@ type StructuralFilters = {
 };
 
 type ScopeFilters = {
+  domainId: string;
   obligationId: string;
-  riskId: string;
 };
 
 type GraphVisibilityRules = {
@@ -173,10 +163,19 @@ const LAYOUT_OPTIONS: Array<{ value: LayoutType; label: string }> = [
   { value: 'circle', label: 'Radial' },
 ];
 
+const MODE_OPTIONS: Array<{ value: KpiMode; label: string; helper: string }> = [
+  { value: 'exposure', label: 'Modo Exposicion', helper: 'Concentracion de vulnerabilidades.' },
+  { value: 'inspection', label: 'Modo Inspeccion', helper: 'Defensa ante cuestionamiento regulatorio.' },
+  { value: 'committee', label: 'Modo Comite', helper: 'Lectura ejecutiva para decision.' },
+  { value: 'evidence', label: 'Modo Evidencia', helper: 'Cobertura probatoria vs exposicion real.' },
+  { value: 'fragility', label: 'Modo Fragilidad', helper: 'Hard gates y puntos de ruptura.' },
+  { value: 'dependency', label: 'Modo Dependencia', helper: 'Riesgo de cascada por concentracion.' },
+];
+
 const NODE_TYPE_COLORS: Record<NodeType, string> = {
   LAW: '#0ea5e9',
   DOMAIN: '#06b6d4',
-  OBLIGATION: '#facc15',
+  OBLIGATION: '#f59e0b',
   RISK: '#ef4444',
   CONTROL: '#22c55e',
   TEST: '#14b8a6',
@@ -188,7 +187,7 @@ const NODE_TYPE_SHAPES: Record<NodeType, string> = {
   LAW: 'hexagon',
   DOMAIN: 'round-rectangle',
   OBLIGATION: 'rectangle',
-  RISK: 'triangle',
+  RISK: 'diamond',
   CONTROL: 'ellipse',
   TEST: 'triangle',
   EVIDENCE: 'pentagon',
@@ -196,12 +195,12 @@ const NODE_TYPE_SHAPES: Record<NodeType, string> = {
 };
 
 const EDGE_TYPE_COLORS: Record<string, string> = {
-  DOMAIN_TO_DOMAIN: '#ffffff',
-  DOMAIN_TO_OBLIGATION: '#ffffff',
-  OBLIGATION_TO_OBLIGATION: '#ffffff',
-  OBLIGATION_TO_RISK: '#ffffff',
-  OBLIGATION_TO_CONTROL: '#ffffff',
-  RISK_TO_CONTROL: '#ffffff',
+  DOMAIN_TO_DOMAIN: '#0ea5e9',
+  DOMAIN_TO_OBLIGATION: '#06b6d4',
+  OBLIGATION_TO_OBLIGATION: '#a78bfa',
+  OBLIGATION_TO_RISK: '#f97316',
+  OBLIGATION_TO_CONTROL: '#38bdf8',
+  RISK_TO_CONTROL: '#f43f5e',
 };
 
 const PRESET_BASE = {
@@ -418,50 +417,6 @@ const QUESTION_PRESET_MAP: Record<QuestionId, QuestionPreset> = QUESTION_PRESETS
   return acc;
 }, {} as Record<QuestionId, QuestionPreset>);
 
-const DRIVER_QUESTION_CATEGORIES: DriverQuestionCategory[] = [
-  {
-    id: 'fragility',
-    title: 'Fragilidad estructural',
-    questions: [
-      { id: 'fragility_q1', order: 1, text: 'Cuales son los pocos controles cuya falla podria comprometer multiples obligaciones regulatorias?', presetId: 'control_dependency_concentration' },
-      { id: 'fragility_q2', order: 2, text: 'Donde esta la mayor fragilidad estructural del sistema AML?', presetId: 'max_structural_vulnerability' },
-      { id: 'fragility_q3', order: 3, text: 'Que controles son estructuralmente criticos para sostener el sistema de cumplimiento AML?', presetId: 'critical_breakpoint_controls' },
-      { id: 'fragility_q4', order: 4, text: 'Cuantos controles son estructuralmente clave para la estabilidad del sistema AML?', presetId: 'control_dependency_concentration' },
-      { id: 'fragility_q5', order: 5, text: 'Cuantas obligaciones regulatorias son estructuralmente clave para la estabilidad del sistema AML?', presetId: 'obligation_fragility_concentration' },
-      { id: 'fragility_q6', order: 6, text: 'Que parte del sistema podria fallar primero si uno de esos controles criticos deja de operar?', presetId: 'critical_breakpoint_controls' },
-      { id: 'fragility_q7', order: 7, text: 'Que controles sostienen el mayor numero de obligaciones regulatorias criticas?', presetId: 'control_dependency_concentration' },
-    ],
-  },
-  {
-    id: 'dependencies',
-    title: 'Dependencias sistemicas',
-    questions: [
-      { id: 'dependencies_q8', order: 8, text: 'Que obligaciones regulatorias dependen de un unico control?', presetId: 'control_dependency_concentration' },
-      { id: 'dependencies_q9', order: 9, text: 'Que controles son dependency roots dentro del sistema AML?', presetId: 'control_dependency_concentration' },
-      { id: 'dependencies_q10', order: 10, text: 'Que nodos concentran mas dependencias regulatorias dentro del sistema AML?', presetId: 'control_dependency_concentration' },
-      { id: 'dependencies_q11', order: 11, text: 'Donde depende el sistema AML excesivamente de pocos controles?', presetId: 'control_dependency_concentration' },
-      { id: 'dependencies_q12', order: 12, text: 'Donde se concentra la mayor exposicion estructural dentro del sistema AML?', presetId: 'max_structural_vulnerability' },
-      { id: 'dependencies_q13', order: 13, text: 'Que dominios regulatorios concentran mas obligaciones criticas?', presetId: 'domain_fragility_concentration' },
-      { id: 'dependencies_q14', order: 14, text: 'Donde una falla podria propagarse a multiples obligaciones regulatorias?', presetId: 'critical_breakpoint_controls' },
-    ],
-  },
-  {
-    id: 'defense',
-    title: 'Defensa regulatoria',
-    questions: [
-      { id: 'defense_q15', order: 15, text: 'Que controles funcionan como hard gates regulatorios dentro del sistema AML?', presetId: 'hard_gates_without_support' },
-      { id: 'defense_q16', order: 16, text: 'Que obligaciones regulatorias dependen directamente de esos hard gates?', presetId: 'hard_gates_without_support' },
-      { id: 'defense_q17', order: 17, text: 'Que ocurriria estructuralmente si uno de esos hard gates deja de operar?', presetId: 'hard_gates_without_support' },
-      { id: 'defense_q18', order: 18, text: 'Que controles criticos carecen de evidencia suficiente para ser defendidos ante el regulador?', presetId: 'weak_evidence_defense' },
-      { id: 'defense_q19', order: 19, text: 'Que obligaciones regulatorias criticas no pueden demostrarse con evidencia verificable hoy?', presetId: 'weak_evidence_defense' },
-      { id: 'defense_q20', order: 20, text: 'Si el regulador inspeccionara hoy el sistema AML, que vulnerabilidades estructurales veria primero?', presetId: 'inspection_first_failures' },
-      { id: 'defense_q21', order: 21, text: 'Que controles u obligaciones deberian priorizarse primero para reducir la exposicion regulatoria?', presetId: 'fastest_exposure_reduction' },
-    ],
-  },
-];
-
-const DEFAULT_DRIVER_QUESTION_ID = 'fragility_q2';
-
 function toNumber(value: unknown, fallback = 0) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
@@ -569,7 +524,7 @@ function createVisibilityRules(preset: QuestionPreset): GraphVisibilityRules {
     nodeTypeVisibility,
     edgeTypeWhitelist: preset.edgeTypes,
     maxNodes: Math.max(180, preset.maxNodes),
-    useSubgraph: preset.useSubgraph,
+    useSubgraph: false,
   };
 }
 
@@ -593,15 +548,15 @@ function buildCytoscapeStylesheet() {
         label: 'data(vizLabel)',
         color: '#e2ecff',
         'font-size': 'data(vizFontSize)',
-        'font-weight': 600,
+        'font-weight': 700,
         'text-wrap': 'wrap',
-        'text-max-width': 'data(vizTextMaxWidth)',
+        'text-max-width': 150,
         'text-valign': 'center',
         'text-halign': 'center',
         'text-outline-width': 1,
-        'text-outline-color': 'rgba(2, 6, 23, 0.82)',
-        width: 'data(vizNodeWidth)',
-        height: 'data(vizNodeHeight)',
+        'text-outline-color': 'rgba(2, 6, 23, 0.74)',
+        width: 'data(vizSize)',
+        height: 'data(vizSize)',
         'border-width': 'data(vizBorderWidth)',
         'border-color': 'data(vizBorderColor)',
         'overlay-opacity': 0,
@@ -618,7 +573,7 @@ function buildCytoscapeStylesheet() {
         'target-arrow-shape': 'triangle',
         label: 'data(vizLabel)',
         color: '#c7ddff',
-        'font-size': 5,
+        'font-size': 8,
         'font-weight': 700,
         'text-background-opacity': 0.9,
         'text-background-color': 'rgba(6, 12, 26, 0.9)',
@@ -657,7 +612,6 @@ export default function GraphSimulationClient() {
   const cyRef = useRef<CytoscapeCore | null>(null);
 
   const [selectedQuestion, setSelectedQuestion] = useState<QuestionId>('max_structural_vulnerability');
-  const [selectedDriverQuestionId, setSelectedDriverQuestionId] = useState<string>(DEFAULT_DRIVER_QUESTION_ID);
   const activePreset = QUESTION_PRESET_MAP[selectedQuestion];
 
   const [graph, setGraph] = useState<GraphResponse | null>(null);
@@ -665,39 +619,41 @@ export default function GraphSimulationClient() {
   const [error, setError] = useState<string | null>(null);
   const [selectedElement, setSelectedElement] = useState<GraphViewRow | null>(null);
   const [selectedLayout, setSelectedLayout] = useState<LayoutType>(activePreset.defaultLayout);
-  const [scopeFilters, setScopeFilters] = useState<ScopeFilters>({ obligationId: '', riskId: '' });
+  const [kpiMode, setKpiMode] = useState<KpiMode>(activePreset.mode);
+  const [scopeFilters, setScopeFilters] = useState<ScopeFilters>({ domainId: '', obligationId: '' });
   const [structuralFilters, setStructuralFilters] = useState<StructuralFilters>(activePreset.structuralDefaults);
   const [criticalityMin, setCriticalityMin] = useState(0);
   const [graphVisibilityRules, setGraphVisibilityRules] = useState<GraphVisibilityRules>(() => createVisibilityRules(activePreset));
   const [graphEmphasisRules, setGraphEmphasisRules] = useState<GraphEmphasisRules>(() => createEmphasisRules(activePreset));
   const [highlightedEdgeTypes, setHighlightedEdgeTypes] = useState<string[]>(activePreset.highlightedEdgeTypes);
   const [guardrailMessage, setGuardrailMessage] = useState<string | null>(null);
+  const [isSubgraphMode, setIsSubgraphMode] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const preset = QUESTION_PRESET_MAP[selectedQuestion];
     setSelectedLayout(preset.defaultLayout);
+    setKpiMode(preset.mode);
     setStructuralFilters(preset.structuralDefaults);
-    setCriticalityMin(preset.criticalityMinDefault);
+    setCriticalityMin(0);
     setGraphVisibilityRules(createVisibilityRules(preset));
     setGraphEmphasisRules(createEmphasisRules(preset));
     setHighlightedEdgeTypes(preset.highlightedEdgeTypes);
-    setScopeFilters({ obligationId: '', riskId: '' });
+    setScopeFilters({ domainId: '', obligationId: '' });
     setSelectedElement(null);
     setGuardrailMessage(null);
+    setIsSubgraphMode(false);
   }, [selectedQuestion]);
 
   useEffect(() => {
     const controller = new AbortController();
     const params = new URLSearchParams();
 
-    const requestedNodeTypes = new Set<string>(['OBLIGATION', 'RISK']);
     Object.entries(graphVisibilityRules.nodeTypeVisibility).forEach(([nodeType, visible]) => {
       if (visible && nodeType !== 'UNKNOWN') {
-        requestedNodeTypes.add(nodeType);
+        params.append('node_type', nodeType);
       }
     });
-    requestedNodeTypes.forEach((nodeType) => params.append('node_type', nodeType));
 
     graphVisibilityRules.edgeTypeWhitelist.forEach((edgeType) => params.append('edge_type', edgeType));
 
@@ -705,6 +661,7 @@ export default function GraphSimulationClient() {
     if (structuralFilters.dependencyRoots === 'only') params.set('dependency_root', 'true');
     if (structuralFilters.primaryEdges === 'only') params.set('primary', 'true');
     if (structuralFilters.mandatoryEdges === 'only') params.set('mandatory', 'true');
+    if (criticalityMin > 0) params.set('criticality_min', String(criticalityMin));
 
     setLoading(true);
     setError(null);
@@ -722,6 +679,7 @@ export default function GraphSimulationClient() {
 
         startTransition(() => {
           setGraph(payload as GraphResponse);
+          setIsSubgraphMode(false);
         });
       } catch (fetchError: any) {
         if (fetchError?.name === 'AbortError') return;
@@ -737,18 +695,18 @@ export default function GraphSimulationClient() {
     return () => controller.abort();
   }, [criticalityMin, graphVisibilityRules, reloadKey, structuralFilters]);
 
-  const availableObligationOptions = useMemo(() => {
+  const availableDomainOptions = useMemo(() => {
     const nodes = (graph?.elements || []).filter((element) => element.element_kind === 'node');
     return nodes
-      .filter((element) => getNodeType(element.element_data) === 'OBLIGATION')
+      .filter((element) => getNodeType(element.element_data) === 'DOMAIN')
       .map((element) => ({ id: getElementId(element), label: getElementLabel(element.element_data) }))
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [graph]);
 
-  const availableRiskOptions = useMemo(() => {
+  const availableObligationOptions = useMemo(() => {
     const nodes = (graph?.elements || []).filter((element) => element.element_kind === 'node');
     return nodes
-      .filter((element) => getNodeType(element.element_data) === 'RISK')
+      .filter((element) => getNodeType(element.element_data) === 'OBLIGATION')
       .map((element) => ({ id: getElementId(element), label: getElementLabel(element.element_data) }))
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [graph]);
@@ -768,21 +726,21 @@ export default function GraphSimulationClient() {
     });
 
     const scopeSeed = new Set<string>();
-    if (scopeFilters.obligationId) {
-      const obligationEntityId = scopeFilters.obligationId.split(':')[1] || scopeFilters.obligationId;
+    if (scopeFilters.domainId) {
+      const domainEntityId = scopeFilters.domainId.split(':')[1] || scopeFilters.domainId;
       nodes.forEach((node) => {
         const nodeId = getElementId(node);
-        if (nodeId === scopeFilters.obligationId || String(node.element_data.obligation_id || '') === obligationEntityId) {
+        if (nodeId === scopeFilters.domainId || String(node.element_data.domain_id || '') === domainEntityId) {
           scopeSeed.add(nodeId);
         }
       });
     }
 
-    if (scopeFilters.riskId) {
-      const riskEntityId = scopeFilters.riskId.split(':')[1] || scopeFilters.riskId;
+    if (scopeFilters.obligationId) {
+      const obligationEntityId = scopeFilters.obligationId.split(':')[1] || scopeFilters.obligationId;
       nodes.forEach((node) => {
         const nodeId = getElementId(node);
-        if (nodeId === scopeFilters.riskId || String(node.element_data.risk_id || '') === riskEntityId) {
+        if (nodeId === scopeFilters.obligationId || String(node.element_data.obligation_id || '') === obligationEntityId) {
           scopeSeed.add(nodeId);
         }
       });
@@ -808,9 +766,6 @@ export default function GraphSimulationClient() {
     }
 
     if (criticalityMin > 0) {
-      const nodesBeforeCriticality = nodes;
-      const edgesBeforeCriticality = edges;
-
       const seedIds = new Set(
         nodes
           .filter((node) => {
@@ -839,13 +794,6 @@ export default function GraphSimulationClient() {
           const target = String(edge.element_data.target || '');
           return nodeIds.has(source) && nodeIds.has(target);
         });
-      }
-
-      // Prevent overly aggressive criticidad presets from collapsing the graph into isolated boxes.
-      if (nodes.length < 8 || edges.length < 6) {
-        nodes = nodesBeforeCriticality;
-        edges = edgesBeforeCriticality;
-        nodeIds = new Set(nodes.map((node) => getElementId(node)));
       }
     }
 
@@ -945,23 +893,16 @@ export default function GraphSimulationClient() {
       const badges: string[] = [];
       if (hardGate) badges.push('HG');
       if (dependencyRoot) badges.push('DR');
-      const baseSize = Math.max(32, Math.min(94, 30 + criticality * 7 + (hardGate ? 8 : 0) + (dependencyRoot ? 6 : 0)));
-      const isObligation = nodeType === 'OBLIGATION';
-      const nodeWidth = isObligation ? Math.max(58, baseSize * 1.45) : baseSize;
-      const nodeHeight = isObligation ? Math.max(34, baseSize * 0.82) : baseSize;
-      const textMaxWidth = Math.max(44, Math.round(nodeWidth - 14));
 
       return {
         data: {
           ...data,
           vizColor: NODE_TYPE_COLORS[nodeType],
           vizShape: NODE_TYPE_SHAPES[nodeType],
-          vizNodeWidth: nodeWidth,
-          vizNodeHeight: nodeHeight,
+          vizSize: Math.max(32, Math.min(94, 30 + criticality * 7 + (hardGate ? 8 : 0) + (dependencyRoot ? 6 : 0))),
           vizFillOpacity: Math.max(0.48, opacity),
           vizOpacity: Math.min(1, opacity + (structuralBoost ? 0.15 : 0)),
-          vizFontSize: 5,
-          vizTextMaxWidth: textMaxWidth,
+          vizFontSize: shouldLabel ? 10 : 8,
           vizBorderWidth: hardGate ? 5 : dependencyRoot ? 4 : Math.max(2, Math.min(4, 2 + degree * 0.15)),
           vizBorderColor: hardGate ? '#ef4444' : dependencyRoot ? '#f59e0b' : '#dbeafe',
           vizLabel: shouldLabel ? `${getElementLabel(data)}${badges.length ? ` [${badges.join('|')}]` : ''}` : '',
@@ -981,17 +922,17 @@ export default function GraphSimulationClient() {
         (structuralFilters.mandatoryEdges === 'highlight' && mandatory);
       const shouldLabel = mandatory || primary || highlightedByType;
 
-      const baseWidth = Math.max(2.2, Math.min(7.5, weight * 1.35));
+      const baseWidth = Math.max(1.6, Math.min(7, weight * 1.25));
       const width = mandatory ? Math.max(4.4, baseWidth + 1.4) : primary ? Math.max(3.4, baseWidth + 0.8) : baseWidth;
 
-      let opacity = 0.58;
-      if (highlightedByType || highlightedByStructural || mandatory || primary) opacity = 0.98;
-      else if (!graphEmphasisRules.dimNonRelevant) opacity = 0.78;
+      let opacity = 0.22;
+      if (highlightedByType || highlightedByStructural || mandatory || primary) opacity = 0.95;
+      else if (!graphEmphasisRules.dimNonRelevant) opacity = 0.6;
 
       return {
         data: {
           ...data,
-          vizColor: EDGE_TYPE_COLORS[edgeType] || '#ffffff',
+          vizColor: mandatory ? '#f59e0b' : primary ? '#38bdf8' : EDGE_TYPE_COLORS[edgeType] || '#64748b',
           vizWidth: width,
           vizOpacity: opacity,
           vizLineStyle: mandatory || primary || highlightedByType ? 'solid' : 'dashed',
@@ -1193,34 +1134,77 @@ export default function GraphSimulationClient() {
     };
   }, [processed]);
 
+  const kpiCards = useMemo(() => {
+    if (kpiMode === 'inspection') {
+      return [
+        { label: 'Riesgos sin control directo', value: metrics.risksWithoutControl, hint: 'Posibles observaciones inmediatas.' },
+        { label: 'Controles con defensa debil', value: metrics.weakDefenseControls, hint: 'Evidencia insuficiente para soportar eficacia.' },
+        { label: 'Edges mandatorios visibles', value: metrics.mandatoryEdgeCount, hint: 'Cadena regulatoria obligatoria en foco.' },
+        { label: 'Exposicion estructural', value: `${metrics.exposureIndex}/100`, hint: 'Indicador agregado para comite.' },
+      ];
+    }
+
+    if (kpiMode === 'committee') {
+      return [
+        { label: 'Top vulnerabilidades', value: metrics.topVulnerabilities.length, hint: 'Nodos criticos para decision inmediata.' },
+        { label: 'Concentracion de dependencia', value: `${metrics.concentrationIndex}%`, hint: 'Dependencia sobre pocos controles.' },
+        { label: 'Hard gates en foco', value: metrics.hardGateCount, hint: 'Puntos no compensables.' },
+        { label: 'Exposicion estructural', value: `${metrics.exposureIndex}/100`, hint: 'Riesgo sistemico consolidado.' },
+      ];
+    }
+
+    if (kpiMode === 'evidence') {
+      return [
+        { label: 'Controles con evidencia debil', value: metrics.weakDefenseControls, hint: 'Brecha entre cumplimiento y defensa.' },
+        { label: 'Edges mandatorios', value: metrics.mandatoryEdgeCount, hint: 'Relaciones de satisfaccion formal.' },
+        { label: 'Riesgos sin control', value: metrics.risksWithoutControl, hint: 'Exposicion sin mitigacion evidente.' },
+        { label: 'Exposicion estructural', value: `${metrics.exposureIndex}/100`, hint: 'Lectura ejecutiva de fragilidad.' },
+      ];
+    }
+
+    if (kpiMode === 'dependency') {
+      return [
+        { label: 'Indice de concentracion', value: `${metrics.concentrationIndex}%`, hint: 'Mayor share de mitigacion por control.' },
+        { label: 'Dependency roots', value: metrics.dependencyRootCount, hint: 'Nodos con impacto en cascada.' },
+        { label: 'Hard gates', value: metrics.hardGateCount, hint: 'Puntos de ruptura no compensables.' },
+        { label: 'Top controles concentrados', value: metrics.topConcentratedControls.length, hint: 'Dependencias prioritarias.' },
+      ];
+    }
+
+    if (kpiMode === 'fragility') {
+      return [
+        { label: 'Hard gates criticos', value: metrics.hardGateCount, hint: 'Rupturas potenciales inmediatas.' },
+        { label: 'Riesgos sin cobertura', value: metrics.risksWithoutControl, hint: 'Nodos de exposicion sin mitigacion.' },
+        { label: 'Dependency roots', value: metrics.dependencyRootCount, hint: 'Candidatos a falla en cascada.' },
+        { label: 'Exposicion estructural', value: `${metrics.exposureIndex}/100`, hint: 'Nivel agregado de fragilidad.' },
+      ];
+    }
+
+    return [
+      { label: 'Exposicion estructural', value: `${metrics.exposureIndex}/100`, hint: 'Concentracion de vulnerabilidad visible.' },
+      { label: 'Hard gates', value: metrics.hardGateCount, hint: 'Elementos no compensables en vista.' },
+      { label: 'Dependency roots', value: metrics.dependencyRootCount, hint: 'Nodos que disparan cascadas.' },
+      { label: 'Concentracion de dependencia', value: `${metrics.concentrationIndex}%`, hint: 'Dependencia sobre pocos controles.' },
+    ];
+  }, [kpiMode, metrics]);
+
   const modelCoverage = useMemo(() => {
     const ordered: NodeType[] = ['LAW', 'DOMAIN', 'OBLIGATION', 'RISK', 'CONTROL', 'TEST', 'EVIDENCE'];
     const visibleLayers = ordered.filter((type) => metrics.countsByType[type] > 0);
     return visibleLayers.length > 0 ? visibleLayers.join(' -> ') : 'Sin capas visibles';
   }, [metrics.countsByType]);
 
-  const controlMetadataRows = useMemo(() => {
-    const pickValue = (data: Record<string, any>, key: string, fallback = '-') => {
-      const metadata = data.metadata && typeof data.metadata === 'object' ? data.metadata : {};
-      const value = data[key] ?? data[key.toLowerCase()] ?? metadata[key] ?? metadata[key.toLowerCase()];
-      if (value === null || value === undefined || value === '') return fallback;
-      return typeof value === 'string' ? value : JSON.stringify(value);
-    };
+  const selectedNode = useMemo(
+    () => (selectedElement?.element_kind === 'node' ? selectedElement : null),
+    [selectedElement]
+  );
 
-    return processed.nodes
-      .filter((node) => getNodeType(node.element_data) === 'CONTROL')
-      .map((node) => {
-        const data = node.element_data;
-        return {
-          id: getElementId(node),
-          Name: pickValue(data, 'Name', getElementLabel(data)),
-          failure_mode: pickValue(data, 'failure_mode'),
-          test_strategy: pickValue(data, 'test_strategy'),
-          dependency_logic: pickValue(data, 'dependency_logic'),
-        };
-      })
-      .sort((a, b) => a.Name.localeCompare(b.Name));
-  }, [processed.nodes]);
+  const selectedNodeDataEntries = useMemo(() => {
+    if (!selectedNode) return [];
+    return Object.entries(selectedNode.element_data)
+      .filter(([, value]) => value !== null && value !== undefined && value !== '')
+      .slice(0, 20);
+  }, [selectedNode]);
   const overFiltered = !loading && !error && processed.nodes.length > 0 && processed.nodes.length < 12;
 
   const toggleNodeTypeVisibility = (nodeType: NodeType) => {
@@ -1243,24 +1227,95 @@ export default function GraphSimulationClient() {
     });
   };
 
+  const fitGraph = () => {
+    cyRef.current?.fit(undefined, 56);
+  };
+
   const resetToPreset = () => {
     const preset = QUESTION_PRESET_MAP[selectedQuestion];
     setSelectedLayout(preset.defaultLayout);
+    setKpiMode(preset.mode);
     setStructuralFilters(preset.structuralDefaults);
-    setCriticalityMin(preset.criticalityMinDefault);
+    setCriticalityMin(0);
     setGraphVisibilityRules(createVisibilityRules(preset));
     setGraphEmphasisRules(createEmphasisRules(preset));
     setHighlightedEdgeTypes(preset.highlightedEdgeTypes);
-    setScopeFilters({ obligationId: '', riskId: '' });
+    setScopeFilters({ domainId: '', obligationId: '' });
     setSelectedElement(null);
     setGuardrailMessage(null);
+    setIsSubgraphMode(false);
     setReloadKey((current) => current + 1);
   };
 
-  const selectDriverQuestion = (question: DriverQuestion) => {
-    setSelectedDriverQuestionId(question.id);
-    setSelectedQuestion(question.presetId);
+  const loadSubgraph = async () => {
+    if (!selectedElement || selectedElement.element_kind !== 'node') return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/graph/subgraph/${encodeURIComponent(getElementId(selectedElement))}`, {
+        cache: 'no-store',
+      });
+      const payload = (await response.json()) as GraphResponse | { error?: string };
+      if (!response.ok) {
+        throw new Error((payload as { error?: string }).error || 'No se pudo cargar el subgrafo');
+      }
+      startTransition(() => {
+        setGraph(payload as GraphResponse);
+        setIsSubgraphMode(true);
+      });
+    } catch (subgraphError: any) {
+      setError(subgraphError?.message || 'No se pudo cargar el subgrafo');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const actionRecommendations = useMemo(() => {
+    const actions = [] as Array<{ title: string; reason: string; priority: 'Alta' | 'Media' }>;
+
+    if (metrics.hardGateCount > 0) {
+      actions.push({
+        title: 'Blindar hard gates con plan de cierre verificable',
+        reason: `${metrics.hardGateCount} hard gates visibles siguen siendo puntos no compensables.`,
+        priority: 'Alta',
+      });
+    }
+
+    if (metrics.concentrationIndex >= 35) {
+      actions.push({
+        title: 'Reducir concentracion de dependencia en controles puente',
+        reason: `Indice de concentracion actual ${metrics.concentrationIndex}% sugiere vulnerabilidad de cascada.`,
+        priority: 'Alta',
+      });
+    }
+
+    if (metrics.weakDefenseControls > 0) {
+      actions.push({
+        title: 'Fortalecer evidencia de eficacia en controles criticos',
+        reason: `${metrics.weakDefenseControls} controles requieren evidencia robusta para defensa regulatoria.`,
+        priority: 'Alta',
+      });
+    }
+
+    if (metrics.risksWithoutControl > 0) {
+      actions.push({
+        title: 'Asignar mitigacion explicita a riesgos sin control directo',
+        reason: `${metrics.risksWithoutControl} riesgos en vista carecen de relacion de mitigacion visible.`,
+        priority: 'Media',
+      });
+    }
+
+    if (actions.length === 0) {
+      actions.push({
+        title: 'Revisar criticidad minima para ampliar sensibilidad',
+        reason: 'No se observan acciones criticas inmediatas con la configuracion actual.',
+        priority: 'Media',
+      });
+    }
+
+    return actions.slice(0, 4);
+  }, [metrics]);
 
   return (
     <div className={styles.page}>
@@ -1276,6 +1331,7 @@ export default function GraphSimulationClient() {
             <div className={styles.heroBadges}>
               <span className={styles.badge}><Layers3 size={14} /> {processed.nodes.length} nodos visibles</span>
               <span className={styles.badge}><GitBranch size={14} /> {processed.edges.length} aristas visibles</span>
+              <span className={styles.badge}><Sparkles size={14} /> {isSubgraphMode ? 'Subgrafo activo' : 'Vista de pregunta activa'}</span>
             </div>
           </div>
 
@@ -1284,49 +1340,96 @@ export default function GraphSimulationClient() {
               <XCircle size={14} />
               Cerrar graph
             </button>
+            <button type="button" className={styles.ghostButton} onClick={fitGraph}>
+              <Maximize2 size={14} />
+              Ajustar vista
+            </button>
             <button type="button" className={styles.ghostButton} onClick={resetToPreset}>
               <RefreshCw size={14} />
               Reset preset
             </button>
+            {isSubgraphMode ? (
+              <button type="button" className={styles.primaryButton} onClick={() => setReloadKey((current) => current + 1)}>
+                <Minimize2 size={14} />
+                Volver al grafo de pregunta
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={styles.primaryButton}
+                onClick={loadSubgraph}
+                disabled={!selectedElement || selectedElement.element_kind !== 'node'}
+              >
+                <Network size={14} />
+                Explorar subgrafo
+              </button>
+            )}
           </div>
         </header>
 
-        <section className={styles.filtersCard}>
-          <div className={styles.cardHeader}>
-            <div>
-              <div className={styles.cardEyebrow}>Filtro principal</div>
-              <div className={styles.cardTitle}>Preguntas-driver AML</div>
+        <section className={styles.modeStrip}>
+          {MODE_OPTIONS.map((mode) => (
+            <button
+              key={mode.value}
+              type="button"
+              className={`${styles.modeButton} ${kpiMode === mode.value ? styles.modeActive : ''}`}
+              onClick={() => setKpiMode(mode.value)}
+              title={mode.helper}
+            >
+              {mode.label}
+            </button>
+          ))}
+        </section>
+
+        <section className={styles.kpiStrip}>
+          {kpiCards.map((kpi) => (
+            <article key={kpi.label} className={styles.kpiCard}>
+              <div className={styles.kpiLabel}>{kpi.label}</div>
+              <div className={styles.kpiValue}>{kpi.value}</div>
+              <div className={styles.kpiHint}>{kpi.hint}</div>
+            </article>
+          ))}
+        </section>
+
+        <div className={styles.workspace}>
+          <aside className={styles.filtersCard}>
+            <div className={styles.cardHeader}>
+              <div>
+                <div className={styles.cardEyebrow}>Filtro principal</div>
+                <div className={styles.cardTitle}>Preguntas-driver AML</div>
+              </div>
+              <Filter size={16} className={styles.cardIcon} />
             </div>
-            <Filter size={16} className={styles.cardIcon} />
-          </div>
 
-          <div className={styles.driverCategoryGrid}>
-            {DRIVER_QUESTION_CATEGORIES.map((category) => (
-              <article key={category.id} className={styles.driverCategoryCard}>
-                <div className={styles.driverCategoryTitle}>{category.title}</div>
-                <div className={styles.driverQuestionList}>
-                  {category.questions.map((question) => {
-                    const isActive = selectedDriverQuestionId === question.id;
-                    return (
-                      <button
-                        key={question.id}
-                        type="button"
-                        className={`${styles.driverQuestionButton} ${isActive ? styles.driverQuestionActive : ''}`}
-                        onClick={() => selectDriverQuestion(question)}
-                      >
-                        <span className={styles.driverQuestionOrder}>{question.order}.</span>
-                        <span className={styles.driverQuestionText}>{question.text}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </article>
-            ))}
-          </div>
+            <div className={styles.questionList}>
+              {QUESTION_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  className={`${styles.questionCard} ${selectedQuestion === preset.id ? styles.questionActive : ''}`}
+                  onClick={() => setSelectedQuestion(preset.id)}
+                >
+                  <div className={styles.questionText}>{preset.prompt}</div>
+                  <div className={styles.questionMeta}>
+                    <span>{preset.defaultLayout}</span>
+                    <span>{preset.mode}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
 
-          <div className={styles.filterControlsRow}>
             <div className={styles.controlBlock}>
               <div className={styles.controlLabel}>Alcance</div>
+              <select
+                className={styles.selectInput}
+                value={scopeFilters.domainId}
+                onChange={(event) => setScopeFilters((current) => ({ ...current, domainId: event.target.value }))}
+              >
+                <option value="">Todos los dominios</option>
+                {availableDomainOptions.map((option) => (
+                  <option key={option.id} value={option.id}>{option.label}</option>
+                ))}
+              </select>
               <select
                 className={styles.selectInput}
                 value={scopeFilters.obligationId}
@@ -1337,73 +1440,61 @@ export default function GraphSimulationClient() {
                   <option key={option.id} value={option.id}>{option.label}</option>
                 ))}
               </select>
-              <select
-                className={styles.selectInput}
-                value={scopeFilters.riskId}
-                onChange={(event) => setScopeFilters((current) => ({ ...current, riskId: event.target.value }))}
-              >
-                <option value="">Todos los riesgos</option>
-                {availableRiskOptions.map((option) => (
-                  <option key={option.id} value={option.id}>{option.label}</option>
-                ))}
-              </select>
             </div>
 
             <div className={styles.controlBlock}>
-              <div className={styles.controlLabel}>Visibilidad por capa</div>
-              <div className={styles.nodeVisibility}>
-                {ALL_NODE_TYPES.map((nodeType) => (
-                  <label key={nodeType}>
-                    <input
-                      type="checkbox"
-                      checked={graphVisibilityRules.nodeTypeVisibility[nodeType]}
-                      onChange={() => toggleNodeTypeVisibility(nodeType)}
-                    />
-                    <span>{nodeType}</span>
-                  </label>
-                ))}
+              <div className={styles.controlLabel}>Criticidad minima</div>
+              <input
+                className={styles.range}
+                type="range"
+                min="0"
+                max="5"
+                step="1"
+                value={criticalityMin}
+                onChange={(event) => setCriticalityMin(Number(event.target.value))}
+              />
+              <div className={styles.rangeMeta}>
+                <span>0</span>
+                <strong>{criticalityMin}</strong>
+                <span>5</span>
               </div>
             </div>
 
             <div className={styles.controlBlock}>
-              <div className={styles.controlLabel}>Layout recomendado</div>
-              <div className={styles.layoutOptions}>
-                {LAYOUT_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className={`${styles.layoutButton} ${selectedLayout === option.value ? styles.layoutActive : ''}`}
-                    onClick={() => setSelectedLayout(option.value)}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+              <div className={styles.advancedArea}>
+                <div className={styles.controlLabel}>Layout recomendado</div>
+                <div className={styles.layoutOptions}>
+                  {LAYOUT_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`${styles.layoutButton} ${selectedLayout === option.value ? styles.layoutActive : ''}`}
+                      onClick={() => setSelectedLayout(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
 
-            <div className={styles.controlBlock}>
-              <div className={styles.controlLabel}>Leyenda visual</div>
-              <div className={styles.legendList}>
-                <div className={styles.legendItem}>
-                  <span className={`${styles.legendSymbol} ${styles.legendObligation}`}>▭</span>
-                  <span className={styles.legendText}>OBLIGATION = Amarillo Rectangulo</span>
-                </div>
-                <div className={styles.legendItem}>
-                  <span className={`${styles.legendSymbol} ${styles.legendRisk}`}>▲</span>
-                  <span className={styles.legendText}>RISK = Rojo Triangulo</span>
-                </div>
-                <div className={styles.legendItem}>
-                  <span className={`${styles.legendSymbol} ${styles.legendControl}`}>●</span>
-                  <span className={styles.legendText}>CONTROL = Verde Circulo</span>
+                <div className={styles.controlLabel}>Visibilidad por capa</div>
+                <div className={styles.nodeVisibility}>
+                  {ALL_NODE_TYPES.map((nodeType) => (
+                    <label key={nodeType}>
+                      <input
+                        type="checkbox"
+                        checked={graphVisibilityRules.nodeTypeVisibility[nodeType]}
+                        onChange={() => toggleNodeTypeVisibility(nodeType)}
+                      />
+                      <span>{nodeType}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
             </div>
-          </div>
 
-          {guardrailMessage && <div className={styles.guardrail}><AlertTriangle size={14} /> {guardrailMessage}</div>}
-        </section>
+            {guardrailMessage && <div className={styles.guardrail}><AlertTriangle size={14} /> {guardrailMessage}</div>}
+          </aside>
 
-        <div className={styles.workspace}>
           <div className={styles.mainColumn}>
             <section className={styles.graphCard}>
               <div className={styles.cardHeader}>
@@ -1437,35 +1528,61 @@ export default function GraphSimulationClient() {
               <div className={styles.cardHeader}>
                 <div>
                   <div className={styles.cardEyebrow}>Panel analitico</div>
-                  <div className={styles.cardTitle}>Metadata de controles en vista</div>
                 </div>
                 <FileSearch size={16} className={styles.cardIcon} />
               </div>
-              <div className={styles.metadataList}>
-                {controlMetadataRows.length === 0 && (
-                  <div className={styles.emptyState}>No hay controles visibles en el grafo para mostrar metadata.</div>
-                )}
+              <div className={styles.panelHorizontal}>
+                <div className={styles.panelBlock}>
+                  <div className={styles.controlLabel}>Detalle del nodo seleccionado</div>
+                  {!selectedNode && (
+                    <div className={styles.emptyState}>Haz clic en un nodo del grafo para ver su detalle.</div>
+                  )}
+                  {selectedNode && (
+                    <div className={styles.detailContent}>
+                      <div className={styles.detailHero}>
+                        <span className={styles.detailKind}>{selectedNode.element_kind.toUpperCase()}</span>
+                        <div className={styles.detailTitle}>{getElementLabel(selectedNode.element_data)}</div>
+                        <div className={styles.detailCode}>{selectedNode.element_data.code || getElementId(selectedNode)}</div>
+                      </div>
 
-                {controlMetadataRows.map((control) => (
-                  <article key={control.id} className={styles.metadataCard}>
-                    <div className={styles.metadataRow}>
-                      <span>Name</span>
-                      <strong>{control.Name}</strong>
+                      <div className={styles.detailGrid}>
+                        {selectedNodeDataEntries.map(([key, value]) => (
+                          <div key={key} className={styles.detailRow}>
+                            <span>{key}</span>
+                            <strong>{typeof value === 'object' ? JSON.stringify(value) : String(value)}</strong>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className={styles.metadataRow}>
-                      <span>failure_mode</span>
-                      <strong>{control.failure_mode}</strong>
-                    </div>
-                    <div className={styles.metadataRow}>
-                      <span>test_strategy</span>
-                      <strong>{control.test_strategy}</strong>
-                    </div>
-                    <div className={styles.metadataRow}>
-                      <span>dependency_logic</span>
-                      <strong>{control.dependency_logic}</strong>
-                    </div>
-                  </article>
-                ))}
+                  )}
+                </div>
+
+                <div className={styles.panelBlock}>
+                  <div className={styles.controlLabel}>Top vulnerabilidades</div>
+                  <div className={styles.rankList}>
+                    {metrics.topVulnerabilities.map((item) => (
+                      <div key={item.id} className={styles.rankItem}>
+                        <span>{item.label}</span>
+                        <strong>{item.score}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className={styles.panelBlock}>
+                  <div className={styles.controlLabel}>Acciones de mayor impacto</div>
+                  <div className={styles.actionList}>
+                    {actionRecommendations.map((action) => (
+                      <div key={action.title} className={styles.actionItem}>
+                        <div>
+                          <strong>{action.title}</strong>
+                          <p>{action.reason}</p>
+                        </div>
+                        <span className={styles.actionPriority}>{action.priority}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </section>
           </div>

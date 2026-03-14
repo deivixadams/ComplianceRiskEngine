@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import WizardShell from '@/app/validacion/auditorias/nueva/_components/WizardShell';
 import ScoreScopeStep from './_components/ScoreScopeStep';
 import ScoreControl4DStep from './_components/ScoreControl4DStep';
@@ -51,6 +51,7 @@ type SelectionPayload = {
 
 export default function ScoreWizardClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
   const [companies, setCompanies] = useState<{ id: string; name: string; code?: string }[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
@@ -73,6 +74,7 @@ export default function ScoreWizardClient() {
     ENGINE_PROFILE_BASE.map((item) => ({ ...item, value: '—' }))
   );
   const autoSelectKeyRef = useRef<string>('');
+  const urlHydratedRef = useRef(false);
 
   useEffect(() => {
     const today = new Date();
@@ -81,6 +83,42 @@ export default function ScoreWizardClient() {
     const dd = String(today.getDate()).padStart(2, '0');
     setStartDate(`${yyyy}-${mm}-${dd}`);
   }, []);
+
+  useEffect(() => {
+    if (urlHydratedRef.current) return;
+    const stepFromQuery = Number(searchParams.get('step'));
+    const runIdFromQuery = searchParams.get('runId');
+
+    if (Number.isInteger(stepFromQuery) && stepFromQuery >= 1 && stepFromQuery <= TOTAL_STEPS) {
+      setStep(stepFromQuery);
+    }
+
+    if (runIdFromQuery) {
+      setDraftId(runIdFromQuery);
+    }
+
+    urlHydratedRef.current = true;
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!urlHydratedRef.current) return;
+
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.set('step', String(step));
+
+    if (draftId) {
+      nextParams.set('runId', draftId);
+    } else {
+      nextParams.delete('runId');
+    }
+
+    const targetQuery = nextParams.toString();
+    const currentQuery = searchParams.toString();
+
+    if (targetQuery === currentQuery) return;
+
+    router.replace(`/score/score?${targetQuery}`, { scroll: false });
+  }, [draftId, router, searchParams, step]);
 
   useEffect(() => {
     if (!startDate) return;

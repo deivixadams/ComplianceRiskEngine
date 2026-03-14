@@ -46,8 +46,16 @@ function buildNarrative(params: {
   uncoveredCount: number;
   topDriver?: DriverRow;
   hardGateCount: number;
+  evaluatedCount: number;
 }) {
   const lines: string[] = [];
+
+  if (params.evaluatedCount === 0) {
+    return [
+      'La corrida no tiene controles evaluados todavía, por eso el score se fija en 0 y no en una estimación intermedia.',
+      'Hasta que exista al menos una evaluación válida en el paso 3, la lectura de exposición y drivers estructurales no es concluyente.',
+    ];
+  }
 
   if (params.score >= 85) {
     lines.push('La corrida refleja una postura de control robusta y con poca exposición remanente.');
@@ -93,85 +101,87 @@ export default async function ScoreExplanationPage({
     const score = payload.score.final_score;
     const { band, tone } = getBandTone(score);
 
-    const [topDriversRaw, uncoveredObligationsRaw] = await Promise.all([
-      prisma.$queryRaw`
-        WITH failed_controls AS (
-          SELECT rcd.control_id, c.code AS control_code, c.name AS control_name
-          FROM score.run_control_draft rcd
-          JOIN corpus.control c
-            ON c.id = rcd.control_id
-          WHERE rcd.run_id = ${runId}::uuid
-            AND COALESCE(rcd.score, 0) = 0
-        ),
-        selected_controls AS (
-          SELECT control_id, COALESCE(score, 0) AS eff
-          FROM score.run_control_draft
-          WHERE run_id = ${runId}::uuid
-        ),
-        selected_obligations AS (
-          SELECT obligation_id
-          FROM score.run_obligation_draft
-          WHERE run_id = ${runId}::uuid
-        ),
-        uncovered AS (
-          SELECT so.obligation_id
-          FROM selected_obligations so
-          LEFT JOIN corpus.map_obligation_control moc
-            ON moc.obligation_id = so.obligation_id
-          LEFT JOIN selected_controls sc
-            ON sc.control_id = moc.control_id
-          GROUP BY so.obligation_id
-          HAVING MAX(COALESCE(sc.eff, 0)) = 0
-        )
-        SELECT
-          fc.control_code,
-          fc.control_name,
-          COUNT(DISTINCT u.obligation_id) AS uncovered_count,
-          STRING_AGG(DISTINCT o.code, ', ' ORDER BY o.code) AS obligation_codes,
-          STRING_AGG(DISTINCT r.code, ', ' ORDER BY r.code) AS risk_codes
-        FROM failed_controls fc
-        LEFT JOIN corpus.map_obligation_control moc
-          ON moc.control_id = fc.control_id
-        LEFT JOIN uncovered u
-          ON u.obligation_id = moc.obligation_id
-        LEFT JOIN corpus.obligation o
-          ON o.id = u.obligation_id
-        LEFT JOIN corpus.map_risk_control mrc
-          ON mrc.control_id = fc.control_id
-        LEFT JOIN corpus.risk r
-          ON r.id = mrc.risk_id
-        GROUP BY fc.control_code, fc.control_name
-        ORDER BY COUNT(DISTINCT u.obligation_id) DESC, fc.control_code ASC
-      `,
-      prisma.$queryRaw`
-        WITH selected_controls AS (
-          SELECT control_id, COALESCE(score, 0) AS eff
-          FROM score.run_control_draft
-          WHERE run_id = ${runId}::uuid
-        ),
-        selected_obligations AS (
-          SELECT obligation_id
-          FROM score.run_obligation_draft
-          WHERE run_id = ${runId}::uuid
-        )
-        SELECT
-          o.code AS obligation_code,
-          o.title,
-          o.criticality,
-          o.evidence_strength,
-          o.is_hard_gate
-        FROM selected_obligations so
-        JOIN corpus.obligation o
-          ON o.id = so.obligation_id
-        LEFT JOIN corpus.map_obligation_control moc
-          ON moc.obligation_id = so.obligation_id
-        LEFT JOIN selected_controls sc
-          ON sc.control_id = moc.control_id
-        GROUP BY o.code, o.title, o.criticality, o.evidence_strength, o.is_hard_gate
-        HAVING MAX(COALESCE(sc.eff, 0)) = 0
-        ORDER BY o.is_hard_gate DESC, o.criticality ASC, o.code ASC
-      `,
-    ]);
+    const [topDriversRaw, uncoveredObligationsRaw] = payload.evaluatedCount === 0
+      ? [[], []]
+      : await Promise.all([
+          prisma.$queryRaw`
+            WITH failed_controls AS (
+              SELECT rcd.control_id, c.code AS control_code, c.name AS control_name
+              FROM score.run_control_draft rcd
+              JOIN corpus.control c
+                ON c.id = rcd.control_id
+              WHERE rcd.run_id = ${runId}::uuid
+                AND COALESCE(rcd.score, 0) = 0
+            ),
+            selected_controls AS (
+              SELECT control_id, COALESCE(score, 0) AS eff
+              FROM score.run_control_draft
+              WHERE run_id = ${runId}::uuid
+            ),
+            selected_obligations AS (
+              SELECT obligation_id
+              FROM score.run_obligation_draft
+              WHERE run_id = ${runId}::uuid
+            ),
+            uncovered AS (
+              SELECT so.obligation_id
+              FROM selected_obligations so
+              LEFT JOIN corpus.map_obligation_control moc
+                ON moc.obligation_id = so.obligation_id
+              LEFT JOIN selected_controls sc
+                ON sc.control_id = moc.control_id
+              GROUP BY so.obligation_id
+              HAVING MAX(COALESCE(sc.eff, 0)) = 0
+            )
+            SELECT
+              fc.control_code,
+              fc.control_name,
+              COUNT(DISTINCT u.obligation_id) AS uncovered_count,
+              STRING_AGG(DISTINCT o.code, ', ' ORDER BY o.code) AS obligation_codes,
+              STRING_AGG(DISTINCT r.code, ', ' ORDER BY r.code) AS risk_codes
+            FROM failed_controls fc
+            LEFT JOIN corpus.map_obligation_control moc
+              ON moc.control_id = fc.control_id
+            LEFT JOIN uncovered u
+              ON u.obligation_id = moc.obligation_id
+            LEFT JOIN corpus.obligation o
+              ON o.id = u.obligation_id
+            LEFT JOIN corpus.map_risk_control mrc
+              ON mrc.control_id = fc.control_id
+            LEFT JOIN corpus.risk r
+              ON r.id = mrc.risk_id
+            GROUP BY fc.control_code, fc.control_name
+            ORDER BY COUNT(DISTINCT u.obligation_id) DESC, fc.control_code ASC
+          `,
+          prisma.$queryRaw`
+            WITH selected_controls AS (
+              SELECT control_id, COALESCE(score, 0) AS eff
+              FROM score.run_control_draft
+              WHERE run_id = ${runId}::uuid
+            ),
+            selected_obligations AS (
+              SELECT obligation_id
+              FROM score.run_obligation_draft
+              WHERE run_id = ${runId}::uuid
+            )
+            SELECT
+              o.code AS obligation_code,
+              o.title,
+              o.criticality,
+              o.evidence_strength,
+              o.is_hard_gate
+            FROM selected_obligations so
+            JOIN corpus.obligation o
+              ON o.id = so.obligation_id
+            LEFT JOIN corpus.map_obligation_control moc
+              ON moc.obligation_id = so.obligation_id
+            LEFT JOIN selected_controls sc
+              ON sc.control_id = moc.control_id
+            GROUP BY o.code, o.title, o.criticality, o.evidence_strength, o.is_hard_gate
+            HAVING MAX(COALESCE(sc.eff, 0)) = 0
+            ORDER BY o.is_hard_gate DESC, o.criticality ASC, o.code ASC
+          `,
+        ]);
 
     const topDrivers = topDriversRaw as DriverRow[];
     const uncoveredObligations = uncoveredObligationsRaw as ObligationRow[];
@@ -184,13 +194,14 @@ export default async function ScoreExplanationPage({
       uncoveredCount: uncoveredObligations.length,
       topDriver: topDrivers[0],
       hardGateCount,
+      evaluatedCount: payload.evaluatedCount,
     });
 
     return (
       <div className={styles.page}>
         <div className={styles.shell}>
           <div className={styles.topbar}>
-            <Link href="/score/score" className={styles.backLink}>
+            <Link href={`/score/score?step=4&runId=${runId}`} className={styles.backLink}>
               <ArrowLeft size={16} />
               Volver al wizard
             </Link>
@@ -360,8 +371,9 @@ export default async function ScoreExplanationPage({
             <div>
               <strong>Respuesta corta a la pregunta “por qué cayó tanto”.</strong>
               <span>
-                No fue por cuatro controles aislados. Fue porque esos cuatro controles dejaron sin cobertura efectiva
-                ocho obligaciones seleccionadas, varias de gobernanza AML y una parte material del bloque de evaluación de riesgo institucional.
+                {payload.evaluatedCount === 0
+                  ? 'No cayó por fallas ya evaluadas; quedó en 0 porque la corrida todavía no tiene una sola evaluación válida en el paso 3.'
+                  : 'No fue por controles aislados. Fue porque los controles en no cumple dejaron sin cobertura efectiva obligaciones seleccionadas y eso degradó materialmente el score.'}
               </span>
             </div>
           </section>

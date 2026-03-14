@@ -324,6 +324,50 @@ export async function buildScoreSummary(
   });
 
   const obligationIds = obligations.map((row) => row.obligation_id);
+  const evaluatedCount = evaluated.length;
+  const isIncomplete = evaluatedCount < totalCount;
+
+  if (evaluatedCount === 0) {
+    return {
+      payload: {
+        runId,
+        isIncomplete,
+        evaluatedCount,
+        totalCount,
+        parameters: {
+          profile,
+          values: parameterRows.map((row) => ({
+            code: row.code,
+            name: row.name,
+            numeric_value: row.numeric_value === null ? null : Number(row.numeric_value),
+          })),
+        },
+        controls: {
+          evaluated,
+          passed,
+          partial,
+          failed: [],
+        },
+        control_scores: [],
+        score: {
+          final_score: 0,
+          base_exposure: 0,
+          concentration_index_h: 0,
+          concentration_factor: 0,
+          concentrated_exposure: 0,
+          propagation_exposure: 0,
+          final_exposure: 0,
+        },
+        debug: {
+          gamma,
+          trigger,
+          uncontrolled_obligations: [],
+        },
+      },
+      controlEffectiveness: {},
+      obligationEffectiveness: {},
+    };
+  }
 
   const obligationControlLinks = await prisma.map_obligation_control.findMany({
     where: {
@@ -438,9 +482,6 @@ export async function buildScoreSummary(
   const propagationExposure = beta * depSum;
   const finalExposure = Math.max(concentratedExposure + propagationExposure, trigger);
   const finalScore = 100 * Math.exp(-gamma * finalExposure);
-
-  const evaluatedCount = evaluated.length;
-  const isIncomplete = evaluatedCount < totalCount;
 
   return {
     payload: {

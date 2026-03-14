@@ -457,7 +457,7 @@ export default function ScoreControl4DStep({
                           </button>
                           <button
                             type="button"
-                            className={`${styles.statusButton} ${current === 'cumple' ? styles.statusActive : ''}`}
+                            className={`${styles.statusButton} ${styles.statusCumple} ${current === 'cumple' ? styles.statusActive : ''}`}
                             onClick={() => updateDimension(activeControl.id, dimension.key, 'cumple')}
                             disabled={!hasTests}
                           >
@@ -466,7 +466,7 @@ export default function ScoreControl4DStep({
                           {dimension.key !== 'existencia' && (
                             <button
                               type="button"
-                              className={`${styles.statusButton} ${current === 'parcial' ? styles.statusActive : ''}`}
+                              className={`${styles.statusButton} ${styles.statusParcial} ${current === 'parcial' ? styles.statusActive : ''}`}
                               onClick={() => updateDimension(activeControl.id, dimension.key, 'parcial')}
                               disabled={!hasTests}
                             >
@@ -475,7 +475,7 @@ export default function ScoreControl4DStep({
                           )}
                           <button
                             type="button"
-                            className={`${styles.statusButton} ${current === 'no_cumple' ? styles.statusActive : ''}`}
+                            className={`${styles.statusButton} ${styles.statusNoCumple} ${current === 'no_cumple' ? styles.statusActive : ''}`}
                             onClick={() => updateDimension(activeControl.id, dimension.key, 'no_cumple')}
                             disabled={!hasTests}
                           >

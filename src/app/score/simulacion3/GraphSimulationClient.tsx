@@ -1199,7 +1199,7 @@ export default function GraphSimulationClient() {
     return visibleLayers.length > 0 ? visibleLayers.join(' -> ') : 'Sin capas visibles';
   }, [metrics.countsByType]);
 
-  const controlMetadataRows = useMemo(() => {
+  const selectedControlMetadata = useMemo(() => {
     const pickValue = (data: Record<string, any>, key: string, fallback = '-') => {
       const metadata = data.metadata && typeof data.metadata === 'object' ? data.metadata : {};
       const value = data[key] ?? data[key.toLowerCase()] ?? metadata[key] ?? metadata[key.toLowerCase()];
@@ -1207,20 +1207,25 @@ export default function GraphSimulationClient() {
       return typeof value === 'string' ? value : JSON.stringify(value);
     };
 
-    return processed.nodes
-      .filter((node) => getNodeType(node.element_data) === 'CONTROL')
-      .map((node) => {
-        const data = node.element_data;
-        return {
-          id: getElementId(node),
-          Name: pickValue(data, 'Name', getElementLabel(data)),
-          failure_mode: pickValue(data, 'failure_mode'),
-          test_strategy: pickValue(data, 'test_strategy'),
-          dependency_logic: pickValue(data, 'dependency_logic'),
-        };
-      })
-      .sort((a, b) => a.Name.localeCompare(b.Name));
-  }, [processed.nodes]);
+    if (!selectedElement || selectedElement.element_kind !== 'node') return null;
+    const data = selectedElement.element_data;
+    if (getNodeType(data) !== 'CONTROL') return null;
+
+    return {
+      Name: pickValue(data, 'Name', getElementLabel(data)),
+      failure_mode: pickValue(data, 'failure_mode'),
+      test_strategy: pickValue(data, 'test_strategy'),
+      dependency_logic: pickValue(data, 'dependency_logic'),
+    };
+  }, [selectedElement]);
+
+  const selectedDriverQuestion = useMemo(() => {
+    for (const category of DRIVER_QUESTION_CATEGORIES) {
+      const found = category.questions.find((question) => question.id === selectedDriverQuestionId);
+      if (found) return found;
+    }
+    return null;
+  }, [selectedDriverQuestionId]);
   const overFiltered = !loading && !error && processed.nodes.length > 0 && processed.nodes.length < 12;
 
   const toggleNodeTypeVisibility = (nodeType: NodeType) => {
@@ -1291,120 +1296,190 @@ export default function GraphSimulationClient() {
           </div>
         </header>
 
-        <section className={styles.filtersCard}>
-          <div className={styles.cardHeader}>
-            <div>
-              <div className={styles.cardEyebrow}>Filtro principal</div>
-              <div className={styles.cardTitle}>Preguntas-driver AML</div>
-            </div>
-            <Filter size={16} className={styles.cardIcon} />
-          </div>
-
-          <div className={styles.driverCategoryGrid}>
-            {DRIVER_QUESTION_CATEGORIES.map((category) => (
-              <article key={category.id} className={styles.driverCategoryCard}>
-                <div className={styles.driverCategoryTitle}>{category.title}</div>
-                <div className={styles.driverQuestionList}>
-                  {category.questions.map((question) => {
-                    const isActive = selectedDriverQuestionId === question.id;
-                    return (
-                      <button
-                        key={question.id}
-                        type="button"
-                        className={`${styles.driverQuestionButton} ${isActive ? styles.driverQuestionActive : ''}`}
-                        onClick={() => selectDriverQuestion(question)}
-                      >
-                        <span className={styles.driverQuestionOrder}>{question.order}.</span>
-                        <span className={styles.driverQuestionText}>{question.text}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </article>
-            ))}
-          </div>
-
-          <div className={styles.filterControlsRow}>
-            <div className={styles.controlBlock}>
-              <div className={styles.controlLabel}>Alcance</div>
-              <select
-                className={styles.selectInput}
-                value={scopeFilters.obligationId}
-                onChange={(event) => setScopeFilters((current) => ({ ...current, obligationId: event.target.value }))}
-              >
-                <option value="">Todas las obligaciones</option>
-                {availableObligationOptions.map((option) => (
-                  <option key={option.id} value={option.id}>{option.label}</option>
-                ))}
-              </select>
-              <select
-                className={styles.selectInput}
-                value={scopeFilters.riskId}
-                onChange={(event) => setScopeFilters((current) => ({ ...current, riskId: event.target.value }))}
-              >
-                <option value="">Todos los riesgos</option>
-                {availableRiskOptions.map((option) => (
-                  <option key={option.id} value={option.id}>{option.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className={styles.controlBlock}>
-              <div className={styles.controlLabel}>Visibilidad por capa</div>
-              <div className={styles.nodeVisibility}>
-                {ALL_NODE_TYPES.map((nodeType) => (
-                  <label key={nodeType}>
-                    <input
-                      type="checkbox"
-                      checked={graphVisibilityRules.nodeTypeVisibility[nodeType]}
-                      onChange={() => toggleNodeTypeVisibility(nodeType)}
-                    />
-                    <span>{nodeType}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className={styles.controlBlock}>
-              <div className={styles.controlLabel}>Layout recomendado</div>
-              <div className={styles.layoutOptions}>
-                {LAYOUT_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className={`${styles.layoutButton} ${selectedLayout === option.value ? styles.layoutActive : ''}`}
-                    onClick={() => setSelectedLayout(option.value)}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className={styles.controlBlock}>
-              <div className={styles.controlLabel}>Leyenda visual</div>
-              <div className={styles.legendList}>
-                <div className={styles.legendItem}>
-                  <span className={`${styles.legendSymbol} ${styles.legendObligation}`}>▭</span>
-                  <span className={styles.legendText}>OBLIGATION = Amarillo Rectangulo</span>
-                </div>
-                <div className={styles.legendItem}>
-                  <span className={`${styles.legendSymbol} ${styles.legendRisk}`}>▲</span>
-                  <span className={styles.legendText}>RISK = Rojo Triangulo</span>
-                </div>
-                <div className={styles.legendItem}>
-                  <span className={`${styles.legendSymbol} ${styles.legendControl}`}>●</span>
-                  <span className={styles.legendText}>CONTROL = Verde Circulo</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {guardrailMessage && <div className={styles.guardrail}><AlertTriangle size={14} /> {guardrailMessage}</div>}
-        </section>
-
         <div className={styles.workspace}>
+          <aside className={styles.leftRail}>
+            <section className={styles.filtersCard}>
+              <div className={styles.cardHeader}>
+                <div>
+                  <div className={styles.cardEyebrow}>Filtros estructurales</div>
+                  <div className={styles.cardTitle}>Alcance, visibilidad, layout y leyenda</div>
+                </div>
+                <Filter size={16} className={styles.cardIcon} />
+              </div>
+
+              <div className={styles.filterControlsRow}>
+                <div className={styles.controlBlock}>
+                  <div className={styles.controlLabel}>Alcance</div>
+                  <select
+                    className={styles.selectInput}
+                    value={scopeFilters.obligationId}
+                    onChange={(event) => setScopeFilters((current) => ({ ...current, obligationId: event.target.value }))}
+                  >
+                    <option value="">Todas las obligaciones</option>
+                    {availableObligationOptions.map((option) => (
+                      <option key={option.id} value={option.id}>{option.label}</option>
+                    ))}
+                  </select>
+                  <select
+                    className={styles.selectInput}
+                    value={scopeFilters.riskId}
+                    onChange={(event) => setScopeFilters((current) => ({ ...current, riskId: event.target.value }))}
+                  >
+                    <option value="">Todos los riesgos</option>
+                    {availableRiskOptions.map((option) => (
+                      <option key={option.id} value={option.id}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={styles.controlBlock}>
+                  <div className={styles.controlLabel}>Visibilidad por capa</div>
+                  <div className={styles.nodeVisibility}>
+                    {ALL_NODE_TYPES.map((nodeType) => (
+                      <label key={nodeType}>
+                        <input
+                          type="checkbox"
+                          checked={graphVisibilityRules.nodeTypeVisibility[nodeType]}
+                          onChange={() => toggleNodeTypeVisibility(nodeType)}
+                        />
+                        <span>{nodeType}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className={styles.controlBlock}>
+                  <div className={styles.controlLabel}>Layout recomendado</div>
+                  <div className={styles.layoutOptions}>
+                    {LAYOUT_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className={`${styles.layoutButton} ${selectedLayout === option.value ? styles.layoutActive : ''}`}
+                        onClick={() => setSelectedLayout(option.value)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className={styles.controlBlock}>
+                  <div className={styles.controlLabel}>Leyenda visual</div>
+                  <div className={styles.legendList}>
+                    <div className={styles.legendItem}>
+                      <span className={`${styles.legendSymbol} ${styles.legendObligation}`}>▭</span>
+                      <span className={styles.legendText}>OBLIGATION = Amarillo Rectangulo</span>
+                    </div>
+                    <div className={styles.legendItem}>
+                      <span className={`${styles.legendSymbol} ${styles.legendRisk}`}>▲</span>
+                      <span className={styles.legendText}>RISK = Rojo Triangulo</span>
+                    </div>
+                    <div className={styles.legendItem}>
+                      <span className={`${styles.legendSymbol} ${styles.legendControl}`}>●</span>
+                      <span className={styles.legendText}>CONTROL = Verde Circulo</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className={styles.sidePanel}>
+              <div className={styles.cardHeader}>
+                <div>
+                  <div className={styles.cardEyebrow}>Panel analitico</div>
+                  <div className={styles.cardTitle}>Control seleccionado y detalle de pregunta</div>
+                </div>
+                <FileSearch size={16} className={styles.cardIcon} />
+              </div>
+              <div className={styles.metadataList}>
+                <article className={styles.metadataCard}>
+                  <div className={styles.cardEyebrow}>Control seleccionado</div>
+                  {!selectedControlMetadata && (
+                    <div className={styles.emptyState}>Selecciona un nodo CONTROL en el grafo para ver su metadata.</div>
+                  )}
+                  {selectedControlMetadata && (
+                    <>
+                      <div className={styles.metadataRow}>
+                        <span>Name</span>
+                        <strong>{selectedControlMetadata.Name}</strong>
+                      </div>
+                      <div className={styles.metadataRow}>
+                        <span>failure_mode</span>
+                        <strong>{selectedControlMetadata.failure_mode}</strong>
+                      </div>
+                      <div className={styles.metadataRow}>
+                        <span>test_strategy</span>
+                        <strong>{selectedControlMetadata.test_strategy}</strong>
+                      </div>
+                      <div className={styles.metadataRow}>
+                        <span>dependency_logic</span>
+                        <strong>{selectedControlMetadata.dependency_logic}</strong>
+                      </div>
+                    </>
+                  )}
+                </article>
+
+                <article className={styles.metadataCard}>
+                  <div className={styles.cardEyebrow}>Detalle de pregunta activa</div>
+                  <div className={styles.metadataRow}>
+                    <span>Pregunta</span>
+                    <strong>{selectedDriverQuestion?.text ?? activePreset.prompt}</strong>
+                  </div>
+                  <div className={styles.metadataRow}>
+                    <span>Foco analitico</span>
+                    <strong>{activePreset.intent}</strong>
+                  </div>
+                  <div className={styles.metadataRow}>
+                    <span>Layout aplicado</span>
+                    <strong>{LAYOUT_OPTIONS.find((option) => option.value === selectedLayout)?.label ?? selectedLayout}</strong>
+                  </div>
+                  <div className={styles.metadataRow}>
+                    <span>Relaciones prioritarias</span>
+                    <strong>{activePreset.relationPriority.join(', ')}</strong>
+                  </div>
+                </article>
+              </div>
+            </section>
+          </aside>
+
           <div className={styles.mainColumn}>
+            <section className={styles.filtersCard}>
+              <div className={styles.cardHeader}>
+                <div>
+                  <div className={styles.cardEyebrow}>Filtro principal</div>
+                  <div className={styles.cardTitle}>Preguntas-driver AML</div>
+                </div>
+                <Filter size={16} className={styles.cardIcon} />
+              </div>
+
+              <div className={styles.driverCategoryGrid}>
+                {DRIVER_QUESTION_CATEGORIES.map((category) => (
+                  <article key={category.id} className={styles.driverCategoryCard}>
+                    <div className={styles.driverCategoryTitle}>{category.title}</div>
+                    <div className={styles.driverQuestionList}>
+                      {category.questions.map((question) => {
+                        const isActive = selectedDriverQuestionId === question.id;
+                        return (
+                          <button
+                            key={question.id}
+                            type="button"
+                            className={`${styles.driverQuestionButton} ${isActive ? styles.driverQuestionActive : ''}`}
+                            onClick={() => selectDriverQuestion(question)}
+                          >
+                            <span className={styles.driverQuestionOrder}>{question.order}.</span>
+                            <span className={styles.driverQuestionText}>{question.text}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              {guardrailMessage && <div className={styles.guardrail}><AlertTriangle size={14} /> {guardrailMessage}</div>}
+            </section>
+
             <section className={styles.graphCard}>
               <div className={styles.cardHeader}>
                 <div>
@@ -1431,42 +1506,6 @@ export default function GraphSimulationClient() {
                 <div className={styles.emptyState}>No hay elementos para la pregunta seleccionada con la configuracion actual.</div>
               )}
               <div ref={containerRef} className={styles.graphCanvas} />
-            </section>
-
-            <section className={styles.sidePanel}>
-              <div className={styles.cardHeader}>
-                <div>
-                  <div className={styles.cardEyebrow}>Panel analitico</div>
-                  <div className={styles.cardTitle}>Metadata de controles en vista</div>
-                </div>
-                <FileSearch size={16} className={styles.cardIcon} />
-              </div>
-              <div className={styles.metadataList}>
-                {controlMetadataRows.length === 0 && (
-                  <div className={styles.emptyState}>No hay controles visibles en el grafo para mostrar metadata.</div>
-                )}
-
-                {controlMetadataRows.map((control) => (
-                  <article key={control.id} className={styles.metadataCard}>
-                    <div className={styles.metadataRow}>
-                      <span>Name</span>
-                      <strong>{control.Name}</strong>
-                    </div>
-                    <div className={styles.metadataRow}>
-                      <span>failure_mode</span>
-                      <strong>{control.failure_mode}</strong>
-                    </div>
-                    <div className={styles.metadataRow}>
-                      <span>test_strategy</span>
-                      <strong>{control.test_strategy}</strong>
-                    </div>
-                    <div className={styles.metadataRow}>
-                      <span>dependency_logic</span>
-                      <strong>{control.dependency_logic}</strong>
-                    </div>
-                  </article>
-                ))}
-              </div>
             </section>
           </div>
         </div>

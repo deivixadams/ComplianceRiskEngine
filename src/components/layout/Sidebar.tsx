@@ -22,7 +22,8 @@ import {
     TrendingUp,
     AlertTriangle,
     Layers,
-    CheckSquare
+    CheckSquare,
+    Calendar
 } from "lucide-react";
 
 interface MenuItem {
@@ -41,16 +42,26 @@ interface MenuSection {
 const institutionalMenu: MenuSection[] = [
     {
         id: "inicio",
-        title: "INICIO",
+        title: "SCORE",
         items: [
             { icon: BarChart3, label: "Dashboard", href: "/score/dashboard", tooltip: "Vista ejecutiva unificada del score." },
+            { icon: Layers, label: "Preguntas claves", href: "/score/simulacion2", tooltip: "Analisis guiado por preguntas claves del modelo." },
+            { icon: Calculator, label: "Parámetros del score", href: "/modelo/parametros", tooltip: "Configuracion y ajuste de parametros del motor de score." },
             { icon: BarChart3, label: "Score de fragilidad", href: "/score/score", tooltip: "Resumen general del score." },
             { icon: Activity, label: "Simulación", href: "/score/simulacion", tooltip: "Simulaciones del motor e escenarios." },
             { icon: Activity, label: "Sumulacion2", href: "/score/simulacion2", tooltip: "Nueva experiencia de simulación guiada por preguntas." },
             { icon: Activity, label: "Simulación 3", href: "/score/simulacion3", tooltip: "Clon independiente de Simulacion2 para reingeniería." },
-            { icon: ShieldCheck, label: "Auditoría Continua", href: "/validacion/pruebas", tooltip: "Ejecución de pruebas e resultados." },
             { icon: TrendingUp, label: "Benchmark", href: "/score/dashboard", tooltip: "Comparativos y referencias externas." },
             { icon: Network, label: "Corpus", href: "/modelo/corpus", tooltip: "Corpus regulatorio estructurado." },
+        ]
+    },
+    {
+        id: "auditoria_continua",
+        title: "AUDITORÍA CONTINUA",
+        items: [
+            { icon: ShieldCheck, label: "Motor de pruebas", href: "/validacion/pruebas", tooltip: "Ejecución de pruebas e resultados." },
+            { icon: ClipboardList, label: "Inventario", href: "/validacion/auditorias", tooltip: "Inventario y seguimiento de auditorías." },
+            { icon: Calendar, label: "Agenda", href: "/validacion/plan", tooltip: "Planificación y cronograma de auditoría continua." },
         ]
     },
     {
@@ -64,7 +75,7 @@ const institutionalMenu: MenuSection[] = [
     },
     {
         id: "validacion",
-        title: "AUDITORÍA",
+        title: "AUDITORÍA AML",
         items: [
             { icon: ClipboardList, label: "Plan de auditoría", href: "/validacion/plan", tooltip: "Planificación estratégica de auditoría." },
             { icon: Users, label: "Auditores", href: "/validacion/equipo", tooltip: "Definición del equipo auditor y roles." },

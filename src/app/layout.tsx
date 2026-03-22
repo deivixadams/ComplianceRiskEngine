@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/layout/ThemeContext";
 import AppShell from "@/components/layout/AppShell";
 import QueryProvider from "@/components/providers/QueryProvider";
+import { APP_DESCRIPTION, APP_NAME, APP_SHORT_NAME } from "@/config/app";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -16,8 +17,8 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "CRE - Compliance Risk Engine",
-  description: "Plataforma avanzada de cuantificación de fragilidad regulatoria",
+  title: `${APP_SHORT_NAME} - ${APP_NAME}`,
+  description: APP_DESCRIPTION,
 };
 
 export default function RootLayout({

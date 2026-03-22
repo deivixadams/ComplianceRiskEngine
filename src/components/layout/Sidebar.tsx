@@ -53,8 +53,7 @@ const institutionalMenu: MenuSection[] = [
             { icon: House, label: "Inicio", href: "/score/evaluacion/inicio", tooltip: "Asistente de inicio para la evaluacion." },
             { icon: Layers, label: "Preguntas claves", href: "/score/preguntasClaves", tooltip: "Analisis guiado por preguntas claves del modelo." },
             { icon: Calculator, label: "Parámetros del score", href: "/modelo/parametros", tooltip: "Configuracion y ajuste de parametros del motor de score." },
-            { icon: BarChart3, label: "Score de fragilidad", href: "/score/score", tooltip: "Resumen general del score." },
-            { icon: Activity, label: "Simulación 3", href: "/score/simulacion3", tooltip: "Clon independiente de Simulacion2 para reingeniería." },
+            { icon: Activity, label: "Prueba de estrés", href: "/score/simulacion3", tooltip: "Clon independiente de Simulacion2 para reingeniería." },
             { icon: TrendingUp, label: "Benchmark", href: "/score/dashboard", tooltip: "Comparativos y referencias externas." },
             { icon: Network, label: "Corpus", href: "/modelo/corpus", tooltip: "Corpus regulatorio estructurado." },
         ]
@@ -79,11 +78,10 @@ const institutionalMenu: MenuSection[] = [
     },
     {
         id: "validacion",
-        title: "AUDITORÍA AML",
+        title: "GESTIÓN DE AUDITORÍA",
         items: [
             { icon: ClipboardList, label: "Plan de auditoría", href: "/validacion/plan", tooltip: "Planificación estratégica de auditoría." },
             { icon: Users, label: "Auditores", href: "/validacion/equipo", tooltip: "Definición del equipo auditor y roles." },
-            { icon: ClipboardList, label: "Auditorias", href: "/validacion/auditorias", tooltip: "Modulo de auditoria y validacion." },
             { icon: CheckSquare, label: "Checklists", href: "/validacion/checklists", tooltip: "Listas de verificacion y seguimiento." },
             { icon: Users, label: "Auditados", href: "/validacion/auditados", tooltip: "Entidades auditadas y monitoreadas." },
         ]

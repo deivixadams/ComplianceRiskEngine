@@ -250,8 +250,8 @@ export default function DecisionWizardClient() {
     registerDecision(selectedMethod);
 
     const routes: Record<Method, string> = {
-      matrix: "/score/score",
-      graph: "/score/preguntasClaves",
+      matrix: "/validacion/auditorias",
+      graph: "/score/score?step=1",
       dual: "/score/preguntasClaves?enfoque=dual",
     };
 
@@ -286,7 +286,7 @@ export default function DecisionWizardClient() {
                 className={`${styles.optionCard} ${objective === "classification" ? styles.optionCardActive : ""}`}
                 onClick={() => setObjective("classification")}
               >
-                <div className={styles.optionTitle}>Evaluacion de riesgo</div>
+                <div className={styles.optionTitle}>Linear Risk Assessment</div>
                 <div className={styles.optionText}>
                   Elige esta opcion cuando tu prioridad es cumplimiento tradicional, comparabilidad entre unidades
                   y trazabilidad regulatoria. Funciona mejor si el problema puede describirse por impacto y probabilidad
@@ -300,7 +300,7 @@ export default function DecisionWizardClient() {
                 className={`${styles.optionCard} ${objective === "fragility" ? styles.optionCardActive : ""}`}
                 onClick={() => setObjective("fragility")}
               >
-                <div className={styles.optionTitle}>Fragilidad del sistema</div>
+                <div className={styles.optionTitle}>Structural Fragility Analysis</div>
                 <div className={styles.optionText}>
                   Elige esta opcion cuando sospechas interdependencias, concentraciones o efectos en cascada
                   que una matriz lineal puede subestimar. Es la via correcta si una falla aislada puede

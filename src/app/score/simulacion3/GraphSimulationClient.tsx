@@ -1193,12 +1193,6 @@ export default function GraphSimulationClient() {
     };
   }, [processed]);
 
-  const modelCoverage = useMemo(() => {
-    const ordered: NodeType[] = ['LAW', 'DOMAIN', 'OBLIGATION', 'RISK', 'CONTROL', 'TEST', 'EVIDENCE'];
-    const visibleLayers = ordered.filter((type) => metrics.countsByType[type] > 0);
-    return visibleLayers.length > 0 ? visibleLayers.join(' -> ') : 'Sin capas visibles';
-  }, [metrics.countsByType]);
-
   const selectedControlMetadata = useMemo(() => {
     const pickValue = (data: Record<string, any>, key: string, fallback = '-') => {
       const metadata = data.metadata && typeof data.metadata === 'object' ? data.metadata : {};
@@ -1275,8 +1269,8 @@ export default function GraphSimulationClient() {
             <div className={styles.eyebrow}>AML structural fragility cockpit</div>
             <h1 className={styles.title}>Simulacion de decision ejecutiva AML</h1>
             <p className={styles.subtitle}>
-              Grafo heterogeneo multicapa: ley → dominio → obligacion → riesgo → control → prueba → evidencia.
-              Cobertura activa en dataset: <strong>{modelCoverage}</strong>.
+              Las pruebas de estrés deben permitir a la organización analizar el impacto de distintos escenarios
+              sobre los riesgos a los que está expuesta.
             </p>
             <div className={styles.heroBadges}>
               <span className={styles.badge}><Layers3 size={14} /> {processed.nodes.length} nodos visibles</span>

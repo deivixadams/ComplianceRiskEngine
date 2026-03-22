@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Shield, Lock, Mail, ChevronRight, AlertCircle, Loader2 } from 'lucide-react';
+import { APP_NAME, APP_SHORT_NAME, APP_VERSION_LABEL } from '@/config/app';
 
 const REMEMBER_EMAIL_KEY = 'cre_login_email';
 
@@ -99,9 +100,9 @@ export default function LoginPage() {
                         <Shield size={32} style={{ color: 'var(--primary)' }} />
                     </div>
                     <h1 style={{ fontSize: '2rem', fontWeight: 900, color: 'white', margin: 0, letterSpacing: '-0.05rem' }}>
-                        CRE <span style={{ color: 'var(--primary)', fontSize: '1rem', verticalAlign: 'top' }}>V3</span>
+                        {APP_SHORT_NAME} <span style={{ color: 'var(--primary)', fontSize: '1rem', verticalAlign: 'top' }}>{APP_VERSION_LABEL}</span>
                     </h1>
-                    <p style={{ color: 'var(--muted)', fontSize: '0.8rem', marginTop: '0.5rem' }}>Compliance Risk Engine Architecture</p>
+                    <p style={{ color: 'var(--muted)', fontSize: '0.8rem', marginTop: '0.5rem' }}>{APP_NAME} Architecture</p>
                 </div>
 
                 <div className="glass-card" style={{ padding: '2.5rem', borderRadius: '2rem' }}>
@@ -209,7 +210,7 @@ export default function LoginPage() {
                 </div>
 
                 <p style={{ textAlign: 'center', marginTop: '2.5rem', color: 'var(--muted)', fontSize: '0.6rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1rem', opacity: 0.5 }}>
-                    SISTEMA DE CUANTIFICACION DETERMINISTA - CRE © 2026
+                    SISTEMA DE CUANTIFICACION DETERMINISTA - {APP_SHORT_NAME} © 2026
                 </p>
             </div>
 

@@ -1,5 +1,5 @@
-import GraphSimulationClient from './GraphSimulationClient';
+import { redirect } from 'next/navigation';
 
 export default function ScoreSimulacion2Page() {
-  return <GraphSimulationClient />;
+  redirect('/score/preguntasClaves');
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { APP_SHORT_NAME } from "@/config/app";
 import {
     PlayCircle,
     ShieldCheck,
@@ -23,7 +24,8 @@ import {
     AlertTriangle,
     Layers,
     CheckSquare,
-    Calendar
+    Calendar,
+    House
 } from "lucide-react";
 
 interface MenuItem {
@@ -39,17 +41,19 @@ interface MenuSection {
     items: MenuItem[];
 }
 
+const mainMenuItems: MenuItem[] = [
+    { icon: BarChart3, label: "Dashboard", href: "/score/dashboard", tooltip: "Vista ejecutiva unificada del score." },
+];
+
 const institutionalMenu: MenuSection[] = [
     {
         id: "inicio",
-        title: "SCORE",
+        title: "EVALUACIÓN",
         items: [
-            { icon: BarChart3, label: "Dashboard", href: "/score/dashboard", tooltip: "Vista ejecutiva unificada del score." },
-            { icon: Layers, label: "Preguntas claves", href: "/score/simulacion2", tooltip: "Analisis guiado por preguntas claves del modelo." },
+            { icon: House, label: "Inicio", href: "/score/evaluacion/inicio", tooltip: "Asistente de inicio para la evaluacion." },
+            { icon: Layers, label: "Preguntas claves", href: "/score/preguntasClaves", tooltip: "Analisis guiado por preguntas claves del modelo." },
             { icon: Calculator, label: "Parámetros del score", href: "/modelo/parametros", tooltip: "Configuracion y ajuste de parametros del motor de score." },
             { icon: BarChart3, label: "Score de fragilidad", href: "/score/score", tooltip: "Resumen general del score." },
-            { icon: Activity, label: "Simulación", href: "/score/simulacion", tooltip: "Simulaciones del motor e escenarios." },
-            { icon: Activity, label: "Sumulacion2", href: "/score/simulacion2", tooltip: "Nueva experiencia de simulación guiada por preguntas." },
             { icon: Activity, label: "Simulación 3", href: "/score/simulacion3", tooltip: "Clon independiente de Simulacion2 para reingeniería." },
             { icon: TrendingUp, label: "Benchmark", href: "/score/dashboard", tooltip: "Comparativos y referencias externas." },
             { icon: Network, label: "Corpus", href: "/modelo/corpus", tooltip: "Corpus regulatorio estructurado." },
@@ -158,7 +162,7 @@ export default function Sidebar() {
                         <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--primary-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <Shield size={20} color="white" />
                         </div>
-                        <h1 className="gradient-text" style={{ fontSize: '1.25rem', fontWeight: 'bold', letterSpacing: '0.1rem' }}>CRE</h1>
+                        <h1 className="gradient-text" style={{ fontSize: '1.25rem', fontWeight: 'bold', letterSpacing: '0.1rem' }}>{APP_SHORT_NAME}</h1>
                     </div>
                 )}
                 <button
@@ -170,6 +174,39 @@ export default function Sidebar() {
             </div>
 
             <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem', overflowY: 'auto', overflowX: 'hidden' }}>
+                <div style={{ marginBottom: '0.5rem' }}>
+                    {mainMenuItems.map((item) => {
+                        const isActive = pathname === item.href;
+                        return (
+                            <Link
+                                key={item.href + item.label}
+                                href={item.href}
+                                title={item.tooltip}
+                                className={`sidebar-link ${isActive ? 'active' : ''}`}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '1rem',
+                                    padding: '0.7rem 0.75rem',
+                                    borderRadius: '10px',
+                                    color: isActive ? 'white' : 'var(--foreground)',
+                                    textDecoration: 'none',
+                                    transition: 'all 0.2s ease',
+                                    fontSize: '0.85rem',
+                                    background: isActive ? 'var(--primary-glow)' : 'transparent',
+                                    position: 'relative'
+                                }}
+                            >
+                                <item.icon size={18} color={isActive ? "white" : "var(--primary)"} />
+                                {!collapsed && <span>{item.label}</span>}
+                                {isActive && !collapsed && (
+                                    <div style={{ position: 'absolute', right: '0.5rem', width: '4px', height: '12px', borderRadius: '4px', background: 'white' }} />
+                                )}
+                            </Link>
+                        );
+                    })}
+                </div>
+
                 {institutionalMenu.map((section) => (
                     <div key={section.id} style={{ marginBottom: '0.5rem' }}>
                         {!collapsed ? (

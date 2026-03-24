@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS corpus.corpus.audit_finding (
     
     evaluation_id UUID REFERENCES corpus.corpus.evaluation(id),
     control_id UUID REFERENCES corpus.control(id),
-    obligation_id UUID REFERENCES corpus.obligation(id),
+    obligation_id UUID REFERENCES graph.domain_elements(id),
     risk_id UUID REFERENCES corpus.risk(id),
     test_control_run_id UUID REFERENCES pendiente.pendiente.corpus.test_control_run(id),
     

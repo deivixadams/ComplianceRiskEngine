@@ -36,7 +36,7 @@ export async function GET(
         ctt.code AS control_type_code,
         rcd.reasons
       FROM score.run_control_draft rcd
-      JOIN corpus.control c
+      JOIN graph.control c
         ON c.id = rcd.control_id
       LEFT JOIN catalogos.corpus_catalog_control_type ctt
         ON ctt.id = c.control_type_id
@@ -104,3 +104,4 @@ export async function GET(
     return NextResponse.json({ error: 'Failed to load controls' }, { status: 500 });
   }
 }
+

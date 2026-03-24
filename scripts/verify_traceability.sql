@@ -13,7 +13,7 @@ DECLARE
     v_model_run_id UUID := gen_random_uuid();
 BEGIN
     -- 1. Setup Base Data
-    INSERT INTO corpus.jurisdiction (id, name, code, iso2, iso3) 
+    INSERT INTO graph.jurisdiction (id, name, code, iso2, iso3) 
     VALUES (v_jurisdiction_id, 'Traceability Land', 'TRL', 'TL', 'TRL');
 
     INSERT INTO corpus.company (id, name, code, legal_name, jurisdiction_id, status_id) 

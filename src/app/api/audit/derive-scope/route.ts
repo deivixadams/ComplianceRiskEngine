@@ -12,9 +12,12 @@ export async function POST(request: Request) {
     if (resolvedObligationIds.length === 0 && domainIds.length > 0) {
       const prisma = (await import('@/lib/prisma')).default;
       const obligations = await prisma.$queryRaw<{ id: string }[]>`
-        SELECT id
-        FROM corpus.obligation
-        WHERE domain_id = ANY(${domainIds}::uuid[])
+        SELECT de.id
+        FROM graph.domain_elements de
+        JOIN graph.map_domain_element mde
+          ON mde.element_id = de.id
+        WHERE de.element_type = 'OBLIGATION'
+          AND mde.domain_id = ANY(${domainIds}::uuid[])
       `;
       resolvedObligationIds = (obligations || []).map((o) => o.id);
     }
@@ -27,16 +30,16 @@ export async function POST(request: Request) {
       const prisma = (await import('@/lib/prisma')).default;
       const risks = await prisma.$queryRaw<{ risk_id: string }[]>`
         SELECT DISTINCT mrc.risk_id
-        FROM corpus.map_obligation_control moc
-        JOIN corpus.map_risk_control mrc ON mrc.control_id = moc.control_id
-        WHERE moc.obligation_id = ANY(${resolvedObligationIds}::uuid[])
+        FROM graph.map_domain_elements_control moc
+        JOIN graph.map_risk_control mrc ON mrc.control_id = moc.control_id
+        WHERE moc.element_id = ANY(${resolvedObligationIds}::uuid[])
       `;
       riskCount = (risks || []).length;
 
       const controls = await prisma.$queryRaw<{ control_id: string }[]>`
-        SELECT control_id
-        FROM pendiente.corpus_control_obligation
-        WHERE obligation_id = ANY(${resolvedObligationIds}::uuid[])
+        SELECT DISTINCT control_id
+        FROM graph.map_domain_elements_control
+        WHERE element_id = ANY(${resolvedObligationIds}::uuid[])
       `;
       controlCount = new Set((controls || []).map((c) => c.control_id)).size;
     }
@@ -52,3 +55,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to derive scope' }, { status: 500 });
   }
 }
+

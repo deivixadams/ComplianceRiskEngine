@@ -26,9 +26,9 @@ async function fetchRisks(domainIds: string[], obligationIds: string[], riskIds:
   if (riskIds.length > 0) {
     filters.push(Prisma.sql`r.id = ANY(${riskIds}::uuid[])`);
   } else if (obligationIds.length > 0) {
-    filters.push(Prisma.sql`moc.obligation_id = ANY(${obligationIds}::uuid[])`);
+    filters.push(Prisma.sql`moc.element_id = ANY(${obligationIds}::uuid[])`);
   } else if (domainIds.length > 0) {
-    filters.push(Prisma.sql`o.domain_id = ANY(${domainIds}::uuid[])`);
+    filters.push(Prisma.sql`mde.domain_id = ANY(${domainIds}::uuid[])`);
   }
 
   const whereSql = filters.length
@@ -46,15 +46,15 @@ async function fetchRisks(domainIds: string[], obligationIds: string[], riskIds:
       rt.name AS risk_type_name,
       rl.name AS risk_layer_name,
       COALESCE(
-        array_agg(DISTINCT o.domain_id) FILTER (WHERE o.domain_id IS NOT NULL),
+        array_agg(DISTINCT mde.domain_id) FILTER (WHERE mde.domain_id IS NOT NULL),
         ARRAY[]::uuid[]
       ) AS domain_ids
-    FROM corpus.risk r
+    FROM graph.risk r
     LEFT JOIN catalogos.corpus_catalog_risk_type rt ON rt.id = r.risk_type_id
     LEFT JOIN catalogos.corpus_catalog_risk_layer rl ON rl.id = r.risk_layer_id
-    LEFT JOIN corpus.map_risk_control mrc ON mrc.risk_id = r.id
-    LEFT JOIN corpus.map_obligation_control moc ON moc.control_id = mrc.control_id
-    LEFT JOIN corpus.obligation o ON o.id = moc.obligation_id
+    LEFT JOIN graph.map_risk_control mrc ON mrc.risk_id = r.id
+    LEFT JOIN graph.map_domain_elements_control moc ON moc.control_id = mrc.control_id
+    LEFT JOIN graph.map_domain_element mde ON mde.element_id = moc.element_id
     ${whereSql}
     GROUP BY r.id, r.code, r.name, r.description, r.status, r.risk_type, rt.name, rl.name
     ORDER BY r.name ASC
@@ -97,3 +97,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to fetch risks' }, { status: 500 });
   }
 }
+

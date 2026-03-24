@@ -27,7 +27,7 @@ export async function GET(request: Request) {
           s.framework_version_id,
           v.version as framework_version
         FROM corpus.corpus.superintendence s
-        JOIN corpus.jurisdiction j ON j.id = s.jurisdiction_id
+        JOIN graph.jurisdiction j ON j.id = s.jurisdiction_id
         JOIN pendiente.corpus_framework f ON f.id = s.framework_id
         JOIN corpus._Delete_framework_version v ON v.id = s.framework_version_id
         WHERE s.company_id = ${companyId}

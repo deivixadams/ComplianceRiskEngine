@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS corpus.company (
     code text UNIQUE NOT NULL,
     name text NOT NULL,
     legal_name text,
-    jurisdiction_id uuid REFERENCES corpus.jurisdiction(id),
+    jurisdiction_id uuid REFERENCES graph.jurisdiction(id),
     status_id smallint NOT NULL REFERENCES catalogos.corpus_catalog_status(id),
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS pendiente.corpus_parameter_value (
 
 CREATE TABLE IF NOT EXISTS pendiente.corpus_parameter_obligation_weight (
     parameter_set_id uuid NOT NULL REFERENCES pendiente.corpus_parameter_set(id),
-    obligation_id uuid NOT NULL REFERENCES corpus.obligation(id),
+    obligation_id uuid NOT NULL REFERENCES graph.domain_elements(id),
     weight numeric(10,6) NOT NULL,
     PRIMARY KEY (parameter_set_id, obligation_id)
 );
@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS pendiente.pendiente.corpus_model_run_score (
 
 CREATE TABLE IF NOT EXISTS pendiente.pendiente.corpus_model_run_obligation (
     run_id uuid NOT NULL REFERENCES pendiente.corpus_model_run(id),
-    obligation_id uuid NOT NULL REFERENCES corpus.obligation(id),
+    obligation_id uuid NOT NULL REFERENCES graph.domain_elements(id),
     weight_used numeric(10,6),
     effectiveness_used numeric(6,4),
     exposure_ei numeric(14,6),

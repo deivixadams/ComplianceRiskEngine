@@ -22,8 +22,8 @@ export async function POST(request: Request) {
         c.control_objective,
         c.rationale,
         mrc.coverage_notes
-      FROM corpus.map_risk_control mrc
-      JOIN corpus.control c ON c.id = mrc.control_id
+      FROM graph.map_risk_control mrc
+      JOIN graph.control c ON c.id = mrc.control_id
       WHERE mrc.risk_id = ANY(${riskIds}::uuid[])
       ORDER BY mrc.risk_id, c.name ASC
     `);
@@ -77,3 +77,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to fetch controls' }, { status: 500 });
   }
 }
+

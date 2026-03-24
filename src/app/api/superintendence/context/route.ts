@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       { id: string; name: string; code: string }[]
     >`
       SELECT id, name, code
-      FROM corpus.jurisdiction
+      FROM graph.jurisdiction
       WHERE code = 'DO' OR name ILIKE '%dominicana%'
       ORDER BY name ASC
       LIMIT 1

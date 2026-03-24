@@ -32,12 +32,12 @@ export async function GET(
       ),
       domain_controls AS (
         SELECT DISTINCT moc.control_id
-        FROM corpus.map_obligation_control moc
+        FROM graph.map_domain_elements_control moc
         JOIN selected_obligations so
-          ON so.obligation_id = moc.obligation_id
-        JOIN corpus.obligation o
-          ON o.id = moc.obligation_id
-        WHERE o.domain_id = ${domainId}::uuid
+          ON so.obligation_id = moc.element_id
+        JOIN graph.map_domain_element mde
+          ON mde.element_id = moc.element_id
+        WHERE mde.domain_id = ${domainId}::uuid
       )
       SELECT
         c.id AS control_id,
@@ -53,7 +53,7 @@ export async function GET(
         r.passed,
         r.score
       FROM domain_controls dc
-      JOIN corpus.control c
+      JOIN graph.control c
         ON c.id = dc.control_id
       LEFT JOIN corpus.controltest_graph_view v
         ON v.control_id = c.id
@@ -153,3 +153,4 @@ export async function GET(
     return NextResponse.json({ error: 'Failed to load controls' }, { status: 500 });
   }
 }
+

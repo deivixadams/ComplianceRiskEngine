@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 /**
- * Returns the obligation ↔ risk mapping table
+ * Returns the domain element ↔ risk mapping table
  * Used by the Corpus explorer for bidirectional cascading.
  */
 export async function GET() {
@@ -9,16 +9,17 @@ export async function GET() {
     const prisma = (await import('@/lib/prisma')).default;
 
     const rows = await prisma.$queryRaw<
-      { obligation_id: string; risk_id: string }[]
+      { element_id: string; risk_id: string }[]
     >`
-      SELECT obligation_id, risk_id
-      FROM corpus.map_obligation_risk
-      ORDER BY obligation_id, risk_id
+      SELECT element_id, risk_id
+      FROM graph.map_domain_elements_risk
+      ORDER BY element_id, risk_id
     `;
 
     return NextResponse.json(rows || []);
   } catch (error: any) {
-    console.error('Error fetching obligation-risk mappings:', error);
+    console.error('Error fetching element-risk mappings:', error);
     return NextResponse.json({ error: 'Failed to fetch mappings' }, { status: 500 });
   }
 }
+

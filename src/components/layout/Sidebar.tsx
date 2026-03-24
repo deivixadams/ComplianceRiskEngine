@@ -25,7 +25,7 @@ import {
     Layers,
     CheckSquare,
     Calendar,
-    House
+    Scale
 } from "lucide-react";
 
 interface MenuItem {
@@ -48,9 +48,11 @@ const mainMenuItems: MenuItem[] = [
 const institutionalMenu: MenuSection[] = [
     {
         id: "inicio",
-        title: "EVALUACIÓN",
+        title: "Risk Assessment",
         items: [
-            { icon: House, label: "Inicio", href: "/score/evaluacion/inicio", tooltip: "Asistente de inicio para la evaluacion." },
+            { icon: Scale, label: "Lineal Assessment", href: "/score/evaluacion/lineal-assessment", tooltip: "Evaluacion lineal de riesgo para cumplimiento." },
+            { icon: Network, label: "Structural Assessment", href: "/score/evaluacion/structural-assessment", tooltip: "Evaluacion estructural de fragilidad e interdependencias." },
+            { icon: ClipboardList, label: "Seguiminto", href: "/score/evaluacion/seguiminto", tooltip: "Seguimiento de hallazgos por auditoria y responsable." },
             { icon: Layers, label: "Preguntas claves", href: "/score/preguntasClaves", tooltip: "Analisis guiado por preguntas claves del modelo." },
             { icon: Calculator, label: "Parámetros del score", href: "/modelo/parametros", tooltip: "Configuracion y ajuste de parametros del motor de score." },
             { icon: Activity, label: "Prueba de estrés", href: "/score/simulacion3", tooltip: "Clon independiente de Simulacion2 para reingeniería." },
@@ -305,3 +307,4 @@ export default function Sidebar() {
         </aside>
     );
 }
+

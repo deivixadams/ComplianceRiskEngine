@@ -108,7 +108,7 @@ export default async function ScoreExplanationPage({
             WITH failed_controls AS (
               SELECT rcd.control_id, c.code AS control_code, c.name AS control_name
               FROM score.run_control_draft rcd
-              JOIN corpus.control c
+              JOIN graph.control c
                 ON c.id = rcd.control_id
               WHERE rcd.run_id = ${runId}::uuid
                 AND COALESCE(rcd.score, 0) = 0
@@ -126,8 +126,8 @@ export default async function ScoreExplanationPage({
             uncovered AS (
               SELECT so.obligation_id
               FROM selected_obligations so
-              LEFT JOIN corpus.map_obligation_control moc
-                ON moc.obligation_id = so.obligation_id
+              LEFT JOIN graph.map_domain_elements_control moc
+                ON moc.element_id = so.obligation_id
               LEFT JOIN selected_controls sc
                 ON sc.control_id = moc.control_id
               GROUP BY so.obligation_id
@@ -137,18 +137,19 @@ export default async function ScoreExplanationPage({
               fc.control_code,
               fc.control_name,
               COUNT(DISTINCT u.obligation_id) AS uncovered_count,
-              STRING_AGG(DISTINCT o.code, ', ' ORDER BY o.code) AS obligation_codes,
+              STRING_AGG(DISTINCT de.code, ', ' ORDER BY de.code) AS obligation_codes,
               STRING_AGG(DISTINCT r.code, ', ' ORDER BY r.code) AS risk_codes
             FROM failed_controls fc
-            LEFT JOIN corpus.map_obligation_control moc
+            LEFT JOIN graph.map_domain_elements_control moc
               ON moc.control_id = fc.control_id
             LEFT JOIN uncovered u
-              ON u.obligation_id = moc.obligation_id
-            LEFT JOIN corpus.obligation o
-              ON o.id = u.obligation_id
-            LEFT JOIN corpus.map_risk_control mrc
+              ON u.obligation_id = moc.element_id
+            LEFT JOIN graph.domain_elements de
+              ON de.id = u.obligation_id
+             AND de.element_type = 'OBLIGATION'
+            LEFT JOIN graph.map_risk_control mrc
               ON mrc.control_id = fc.control_id
-            LEFT JOIN corpus.risk r
+            LEFT JOIN graph.risk r
               ON r.id = mrc.risk_id
             GROUP BY fc.control_code, fc.control_name
             ORDER BY COUNT(DISTINCT u.obligation_id) DESC, fc.control_code ASC
@@ -165,21 +166,22 @@ export default async function ScoreExplanationPage({
               WHERE run_id = ${runId}::uuid
             )
             SELECT
-              o.code AS obligation_code,
-              o.title,
-              o.criticality,
-              o.evidence_strength,
-              o.is_hard_gate
+              de.code AS obligation_code,
+              COALESCE(de.title, de.name, de.code) AS title,
+              COALESCE(de.criticality, 3)::int AS criticality,
+              COALESCE(de.evidence_strength, 3)::int AS evidence_strength,
+              COALESCE(de.is_hard_gate, false) AS is_hard_gate
             FROM selected_obligations so
-            JOIN corpus.obligation o
-              ON o.id = so.obligation_id
-            LEFT JOIN corpus.map_obligation_control moc
-              ON moc.obligation_id = so.obligation_id
+            JOIN graph.domain_elements de
+              ON de.id = so.obligation_id
+             AND de.element_type = 'OBLIGATION'
+            LEFT JOIN graph.map_domain_elements_control moc
+              ON moc.element_id = so.obligation_id
             LEFT JOIN selected_controls sc
               ON sc.control_id = moc.control_id
-            GROUP BY o.code, o.title, o.criticality, o.evidence_strength, o.is_hard_gate
+            GROUP BY de.code, de.title, de.name, de.criticality, de.evidence_strength, de.is_hard_gate
             HAVING MAX(COALESCE(sc.eff, 0)) = 0
-            ORDER BY o.is_hard_gate DESC, o.criticality ASC, o.code ASC
+            ORDER BY de.is_hard_gate DESC, de.criticality ASC, de.code ASC
           `,
         ]);
 
@@ -384,3 +386,4 @@ export default async function ScoreExplanationPage({
     notFound();
   }
 }
+

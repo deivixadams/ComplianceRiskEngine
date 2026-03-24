@@ -19,7 +19,7 @@ export type CreScoreEngineInput = {
     title: string;
     risk_weight: number;
   }>;
-  map_obligation_control: Array<{
+  map_domain_elements_control: Array<{
     obligation_id: string;
     control_id: string;
     mitigation_weight: number;
@@ -95,7 +95,7 @@ export function runCreScoreEngine(input: CreScoreEngineInput): CreScoreEngineOut
   const obligationExposure: Array<{ obligation_id: string; exposure: number; fragility: number; domain_id: string }> = [];
 
   const controlsByObligation = new Map<string, string[]>();
-  input.map_obligation_control.forEach((link) => {
+  input.map_domain_elements_control.forEach((link) => {
     const list = controlsByObligation.get(link.obligation_id) ?? [];
     list.push(link.control_id);
     controlsByObligation.set(link.obligation_id, list);

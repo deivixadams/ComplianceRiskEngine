@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import {
     computeControlEffectiveness,
     computeObligationExposure,
@@ -72,13 +73,20 @@ export async function POST(
             scores: []
         };
 
-        // Group controls by obligation using prisma
-        const controlObligationMap = await (prisma as any).corpusControlObligation.findMany();
+        const controlObligationMap = await prisma.$queryRaw(Prisma.sql`
+            SELECT element_id AS "obligationId", control_id AS "controlId"
+            FROM graph.map_domain_elements_control
+        `) as Array<{ obligationId: string; controlId: string }>;
 
-        // Loop through obligations in scope
-        const obligationsInScope = await (prisma as any).corpusObligation.findMany({
-            include: { domain: true }
-        });
+        const obligationsInScope = await prisma.$queryRaw(Prisma.sql`
+            SELECT
+              de.id,
+              mde.domain_id AS "domainId"
+            FROM graph.domain_elements de
+            LEFT JOIN graph.map_domain_element mde
+              ON mde.element_id = de.id
+            WHERE de.element_type = 'OBLIGATION'
+        `) as Array<{ id: string; domainId: string | null }>;
 
         let totalExposure = 0;
         const domainExposures: Record<string, number> = {};

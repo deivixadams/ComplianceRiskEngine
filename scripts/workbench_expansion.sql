@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS corpus.corpus.evaluation_scope (
     evaluation_id UUID NOT NULL REFERENCES corpus.corpus.evaluation(id),
     scope_type TEXT NOT NULL CHECK (scope_type IN ('domain','obligation')),
     domain_id UUID REFERENCES corpus.domain(id),
-    obligation_id UUID REFERENCES corpus.obligation(id),
+    obligation_id UUID REFERENCES graph.domain_elements(id),
     is_in_scope BOOLEAN NOT NULL DEFAULT true,
     rationale TEXT,
     created_at timestamptz NOT NULL DEFAULT now(),

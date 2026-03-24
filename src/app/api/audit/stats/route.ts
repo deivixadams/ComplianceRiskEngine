@@ -5,13 +5,13 @@ export async function GET() {
     const prisma = (await import('@/lib/prisma')).default;
 
     const stats = await prisma.$transaction([
-      prisma.$queryRaw`SELECT count(*)::int as count FROM corpus.domain`,
-      prisma.$queryRaw`SELECT count(*)::int as count FROM corpus.obligation`,
-      prisma.$queryRaw`SELECT count(*)::int as count FROM corpus.risk`,
-      prisma.$queryRaw`SELECT count(*)::int as count FROM corpus.control`,
-      prisma.$queryRaw`SELECT count(*)::int as count FROM corpus.map_risk_control`,
-      prisma.$queryRaw`SELECT count(*)::int as count FROM corpus.map_obligation_risk`,
-      prisma.$queryRaw`SELECT count(*)::int as count FROM corpus.map_obligation_control`,
+      prisma.$queryRaw`SELECT count(*)::int as count FROM graph.domain`,
+      prisma.$queryRaw`SELECT count(*)::int as count FROM graph.domain_elements WHERE element_type = 'OBLIGATION'`,
+      prisma.$queryRaw`SELECT count(*)::int as count FROM graph.risk`,
+      prisma.$queryRaw`SELECT count(*)::int as count FROM graph.control`,
+      prisma.$queryRaw`SELECT count(*)::int as count FROM graph.map_risk_control`,
+      prisma.$queryRaw`SELECT count(*)::int as count FROM graph.map_domain_elements_risk`,
+      prisma.$queryRaw`SELECT count(*)::int as count FROM graph.map_domain_elements_control`,
       prisma.$queryRaw`SELECT count(*)::int as count FROM corpus.audit_assessment`,
       prisma.$queryRaw`SELECT count(*)::int as count FROM corpus.audit_evaluation`,
       prisma.$queryRaw`SELECT count(*)::int as count FROM score.run`,
@@ -36,3 +36,4 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 });
   }
 }
+

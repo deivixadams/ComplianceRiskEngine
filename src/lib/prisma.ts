@@ -25,7 +25,6 @@ const prismaClientSingleton = () => {
                 corpusDomain: "domain",
                 corpusFrameworkVersion: "framework_version",
                 corpusJurisdiction: "jurisdiction",
-                corpusObligation: "obligation",
                 corpusRisk: "risk",
             };
 

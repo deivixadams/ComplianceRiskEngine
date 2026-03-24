@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 
 function toNumber(value: Prisma.Decimal | number | null | undefined) {
@@ -50,13 +50,13 @@ export async function POST(request: Request) {
       const viewRisks = await prisma.$queryRaw(Prisma.sql`
         SELECT DISTINCT v.risk_id, v.risk_code, v.risk_title, r.description
         FROM corpus._score_v_cre_structural_controls_explain_v1 v
-        LEFT JOIN corpus.risk r ON r.id = v.risk_id
+        LEFT JOIN graph.risk r ON r.id = v.risk_id
       `);
 
       const viewControls = await prisma.$queryRaw(Prisma.sql`
         SELECT DISTINCT v.control_id, v.control_code, c.name, c.description
         FROM corpus._score_v_cre_structural_controls_explain_v1 v
-        LEFT JOIN corpus.control c ON c.id = v.control_id
+        LEFT JOIN graph.control c ON c.id = v.control_id
       `);
 
       const viewPayload = {
@@ -168,68 +168,116 @@ export async function POST(request: Request) {
       }
     }
 
-    const obligations = await prisma.obligation.findMany({
-      where: {
-        status: 'active',
-        domain: { framework_version_id: frameworkVersionId },
-      },
-      select: {
-        id: true,
-        code: true,
-        title: true,
-        domain_id: true,
-        criticality: true,
-        evidence_strength: true,
-        is_hard_gate: true,
-      },
-    });
+    const obligations = (await prisma.$queryRaw(Prisma.sql`
+      SELECT
+        de.id,
+        de.code,
+        COALESCE(de.title, de.name, de.code) AS title,
+        mde.domain_id,
+        COALESCE(de.criticality, 3)::int AS criticality,
+        COALESCE(de.evidence_strength, 3)::int AS evidence_strength,
+        COALESCE(de.is_hard_gate, false) AS is_hard_gate
+      FROM graph.domain_elements de
+      JOIN graph.map_domain_element mde
+        ON mde.element_id = de.id
+      JOIN graph.domain d
+        ON d.id = mde.domain_id
+      WHERE de.element_type = 'OBLIGATION'
+        AND COALESCE(de.obligation_status, 'active') = 'active'
+        AND d.framework_version_id = ${frameworkVersionId}::uuid
+      ORDER BY de.code
+    `)) as Array<{
+      id: string;
+      code: string;
+      title: string;
+      domain_id: string;
+      criticality: number;
+      evidence_strength: number;
+      is_hard_gate: boolean;
+    }>;
 
     const obligationIds = obligations.map((o) => o.id);
     const obligationCodes = obligations.map((o) => o.code);
 
     const [obligationRisks, obligationControls, obligationGraph] = await Promise.all([
-      prisma.map_obligation_risk.findMany({
-        where: { obligation_id: { in: obligationIds } },
-      }),
-      prisma.map_obligation_control.findMany({
-        where: { obligation_id: { in: obligationIds } },
-      }),
+      obligationIds.length > 0
+        ? prisma.$queryRaw(Prisma.sql`
+            SELECT element_id AS obligation_id, risk_id, link_strength
+            FROM graph.map_domain_elements_risk
+            WHERE element_id IN (${Prisma.join(obligationIds.map((id) => Prisma.sql`${id}::uuid`))})
+          `)
+        : Promise.resolve([]),
+      obligationIds.length > 0
+        ? prisma.$queryRaw(Prisma.sql`
+            SELECT element_id AS obligation_id, control_id
+            FROM graph.map_domain_elements_control
+            WHERE element_id IN (${Prisma.join(obligationIds.map((id) => Prisma.sql`${id}::uuid`))})
+          `)
+        : Promise.resolve([]),
       prisma.obligation_graph.findMany({
         where: {
           parent_obligation_code: { in: obligationCodes },
         },
       }),
-    ]);
+    ]) as [
+      Array<{ obligation_id: string; risk_id: string; link_strength: number }>,
+      Array<{ obligation_id: string; control_id: string }>,
+      any[]
+    ];
 
     const controlIds = unique(obligationControls.map((c) => c.control_id));
-    const controls = await prisma.control.findMany({
-      where: { id: { in: controlIds }, status: 'active' },
-      select: { id: true, code: true, name: true, description: true, is_hard_gate: true, evidence_required: true },
-    });
+    const controls = controlIds.length > 0
+      ? ((await prisma.$queryRaw(Prisma.sql`
+          SELECT id, code, name, description, is_hard_gate, evidence_required
+          FROM graph.control
+          WHERE status = 'active'
+            AND id IN (${Prisma.join(controlIds.map((id) => Prisma.sql`${id}::uuid`))})
+        `)) as Array<{
+          id: string;
+          code: string;
+          name: string;
+          description: string | null;
+          is_hard_gate: boolean;
+          evidence_required: boolean;
+        }>)
+      : [];
 
-    let riskControls = await prisma.map_risk_control.findMany({
-      where: {
-        framework_version_id: frameworkVersionId,
-        control_id: { in: controlIds },
-      },
-    });
+    let riskControls = controlIds.length > 0
+      ? ((await prisma.$queryRaw(Prisma.sql`
+          SELECT control_id, risk_id, mitigation_strength
+          FROM graph.map_risk_control
+          WHERE framework_version_id = ${frameworkVersionId}::uuid
+            AND control_id IN (${Prisma.join(controlIds.map((id) => Prisma.sql`${id}::uuid`))})
+        `)) as Array<{ control_id: string; risk_id: string; mitigation_strength: number }>)
+      : [];
 
     if (riskControls.length === 0) {
-      riskControls = await prisma.map_risk_control.findMany({
-        where: {
-          control_id: { in: controlIds },
-        },
-      });
+      riskControls = controlIds.length > 0
+        ? ((await prisma.$queryRaw(Prisma.sql`
+            SELECT control_id, risk_id, mitigation_strength
+            FROM graph.map_risk_control
+            WHERE control_id IN (${Prisma.join(controlIds.map((id) => Prisma.sql`${id}::uuid`))})
+          `)) as Array<{ control_id: string; risk_id: string; mitigation_strength: number }>)
+        : [];
     }
 
     const riskIdsFromObligations = obligationRisks.map((r) => r.risk_id);
     const riskIdsFromControls = riskControls.map((r) => r.risk_id);
     const riskIds = unique([...riskIdsFromObligations, ...riskIdsFromControls]);
 
-    const risks = await prisma.risk.findMany({
-      where: { id: { in: riskIds } },
-      select: { id: true, code: true, name: true, description: true, risk_layer_id: true },
-    });
+    const risks = riskIds.length > 0
+      ? ((await prisma.$queryRaw(Prisma.sql`
+          SELECT id, code, name, description, risk_layer_id
+          FROM graph.risk
+          WHERE id IN (${Prisma.join(riskIds.map((id) => Prisma.sql`${id}::uuid`))})
+        `)) as Array<{
+          id: string;
+          code: string;
+          name: string;
+          description: string | null;
+          risk_layer_id: number;
+        }>)
+      : [];
 
     const riskMap = new Map<
       string,
@@ -576,3 +624,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to build selection' }, { status: 500 });
   }
 }
+

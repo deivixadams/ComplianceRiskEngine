@@ -1,6 +1,24 @@
 import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 
+function keepFirstSentences(items: string[], maxSentences = 3): string[] {
+  const normalized = items.map((v) => String(v || '').trim()).filter(Boolean);
+  if (normalized.length === 0) return [];
+
+  const joined = normalized.join(' ');
+  const sentences =
+    joined
+      .match(/[^.!?]+[.!?]+|[^.!?]+$/g)
+      ?.map((s) => s.trim())
+      .filter(Boolean) ?? [];
+
+  if (sentences.length >= maxSentences) {
+    return sentences.slice(0, maxSentences);
+  }
+
+  return normalized.slice(0, maxSentences);
+}
+
 export async function GET(
   _: Request,
   { params }: { params: Promise<{ runId: string; controlId: string }> }
@@ -13,18 +31,28 @@ export async function GET(
       return NextResponse.json({ error: 'Missing runId/controlId' }, { status: 400 });
     }
 
-    const control = await prisma.control.findUnique({
-      where: { id: controlId },
-      select: {
-        id: true,
-        code: true,
-        name: true,
-        description: true,
-        control_objective: true,
-        owner_role: true,
-        evidence_required: true,
-      },
-    });
+    const controlRows = await prisma.$queryRaw<Array<{
+      id: string;
+      code: string;
+      name: string;
+      description: string | null;
+      control_objective: string | null;
+      owner_role: string | null;
+      evidence_required: boolean | null;
+    }>>(Prisma.sql`
+      SELECT
+        id,
+        code,
+        name,
+        description,
+        control_objective,
+        owner_role,
+        evidence_required
+      FROM graph.control
+      WHERE id = ${controlId}::uuid
+      LIMIT 1
+    `);
+    const control = controlRows[0] ?? null;
 
     if (!control) {
       return NextResponse.json({ error: 'Control not found' }, { status: 404 });
@@ -40,21 +68,24 @@ export async function GET(
       ORDER BY dimension
     `);
 
-    const modelColumns = await prisma.$queryRaw<Array<{ column_name: string }>>(Prisma.sql`
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_schema = 'corpus'
-        AND table_name = 'controltest_dimension_model'
-    `);
-    const columnSet = new Set(modelColumns.map((c) => c.column_name));
-    const hasControlId = columnSet.has('control_id');
-    const hasId = columnSet.has('id');
-
     let criteriaByDimension: Record<string, string[]> = {};
     let dimensionTestCounts: Record<string, number> = {};
     const testSeen = new Set<string>();
 
-    if (hasControlId && hasId) {
+    const relationRows = await prisma.$queryRaw<
+      Array<{
+        ctdm_rel: string | null;
+        ctv_rel: string | null;
+      }>
+    >(Prisma.sql`
+      SELECT
+        to_regclass('corpus.controltest_dimension_model')::text AS ctdm_rel,
+        to_regclass('corpus.controltest_graph_view')::text AS ctv_rel
+    `);
+    const hasControltestDimensionModel = Boolean(relationRows[0]?.ctdm_rel);
+    const hasControltestGraphView = Boolean(relationRows[0]?.ctv_rel);
+
+    if (hasControltestDimensionModel) {
       const criteriaRows = await prisma.$queryRaw(Prisma.sql`
         SELECT
           cdm.dimension,
@@ -115,7 +146,13 @@ export async function GET(
     const evaluatorRows = await prisma.$queryRaw(Prisma.sql`
       SELECT
         cdm.dimension,
-        cec.evaluator_steps
+        cec.evaluation_guidance,
+        cec.pass_criteria,
+        cec.fail_criteria,
+        cec.evaluator_steps,
+        cec.evidence_min_spec,
+        cec.sample_guidance,
+        cec.notes
       FROM corpus.control_evaluation_catalog cec
       JOIN corpus.control_dimension_model cdm
         ON cdm.id = cec.dimension_id
@@ -128,36 +165,46 @@ export async function GET(
     (evaluatorRows as any[]).forEach((row) => {
       const dimension = String(row.dimension || '');
       if (!criteriaByDimension[dimension]) criteriaByDimension[dimension] = [];
-      if (!row.evaluator_steps) return;
-      const steps = String(row.evaluator_steps)
+      const addLine = (line: unknown) => {
+        const value = String(line || '').trim();
+        if (!value) return;
+        if (!criteriaByDimension[dimension].includes(value)) {
+          criteriaByDimension[dimension].push(value);
+        }
+      };
+      addLine(row.evaluation_guidance);
+      addLine(row.evidence_min_spec);
+      addLine(row.sample_guidance);
+      addLine(row.pass_criteria ? `Criterio de cumplimiento: ${String(row.pass_criteria).trim()}` : '');
+      addLine(row.fail_criteria ? `Criterio de no cumplimiento: ${String(row.fail_criteria).trim()}` : '');
+      addLine(row.notes);
+      const steps = String(row.evaluator_steps || '')
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter(Boolean);
-      steps.forEach((step) => {
-        if (!criteriaByDimension[dimension].includes(step)) {
-          criteriaByDimension[dimension].push(step);
-        }
-      });
+      steps.forEach(addLine);
     });
 
-    const tests = await prisma.$queryRaw(Prisma.sql`
-      SELECT
-        control_id,
-        dimension,
-        test_id,
-        test_code,
-        test_title,
-        test_weight,
-        is_key,
-        evidence_type,
-        evidence_name,
-        required,
-        min_quantity,
-        window_days
-      FROM corpus.controltest_graph_view
-      WHERE control_id = ${controlId}::uuid
-      ORDER BY dimension, test_code
-    `);
+    const tests = hasControltestGraphView
+      ? await prisma.$queryRaw(Prisma.sql`
+          SELECT
+            control_id,
+            dimension,
+            test_id,
+            test_code,
+            test_title,
+            test_weight,
+            is_key,
+            evidence_type,
+            evidence_name,
+            required,
+            min_quantity,
+            window_days
+          FROM corpus.controltest_graph_view
+          WHERE control_id = ${controlId}::uuid
+          ORDER BY dimension, test_code
+        `)
+      : [];
 
     const results = await prisma.score_test_result_draft.findMany({
       where: { run_id: runId, control_id: controlId },
@@ -174,6 +221,10 @@ export async function GET(
           orderBy: { uploaded_at: 'desc' },
         })
       : [];
+
+    Object.keys(criteriaByDimension).forEach((dimension) => {
+      criteriaByDimension[dimension] = keepFirstSentences(criteriaByDimension[dimension] || [], 3);
+    });
 
     return NextResponse.json({
       runId,

@@ -5,7 +5,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  schemas  = ["catalogos", "corpus", "pendiente", "security", "score", "params"]
+  schemas  = ["catalogos", "corpus", "graph", "pendiente", "security", "score", "params"]
 }
 
 model corpus_catalog_control_automation {
@@ -642,9 +642,9 @@ model llm_master_prompts {
   @@schema("corpus")
 }
 
-model map_obligation_control {
+model map_domain_elements_control {
   control_id             String   @db.Uuid
-  obligation_id          String   @db.Uuid
+  element_id             String   @db.Uuid
   satisfaction_mode      String
   evidence_required      Boolean  @default(true)
   min_coverage_threshold Decimal? @db.Decimal(5, 4)
@@ -652,23 +652,19 @@ model map_obligation_control {
   created_at             DateTime @default(now()) @db.Timestamptz(6)
   updated_at             DateTime @default(now()) @db.Timestamptz(6)
 
-  @@id([control_id, obligation_id], map: "corpus_obligation_control_map_pkey")
-  @@index([obligation_id], map: "idx_ocm_obligation")
-  @@schema("corpus")
+  @@id([control_id, element_id], map: "map_domain_elements_control_pkey")
+  @@index([element_id], map: "idx_ocm_element")
+  @@schema("graph")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model map_obligation_risk {
-  obligation_id String @db.Uuid
+model map_domain_elements_risk {
+  element_id    String @db.Uuid
   risk_id       String @db.Uuid
   link_strength Int    @default(3) @db.SmallInt
 
-  @@id([obligation_id, risk_id], map: "corpus_obligation_risk_pkey")
-  @@unique([obligation_id, risk_id], map: "uq_obligation_risk_pair")
-  @@index([risk_id], map: "idx_corpus_obligation_risk_risk_id")
-  @@index([obligation_id], map: "idx_obligation_risk_obligation")
-  @@index([risk_id], map: "idx_obligation_risk_risk")
-  @@schema("corpus")
+  @@id([element_id, risk_id], map: "map_domain_elements_risk_pkey")
+  @@schema("graph")
 }
 
 model map_risk_control {

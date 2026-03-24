@@ -202,7 +202,7 @@ export async function buildScoreSummary(
       c.required_test,
       rcd.reasons
     FROM score.run_control_draft rcd
-    JOIN corpus.control c
+    JOIN graph.control c
       ON c.id = rcd.control_id
     WHERE rcd.run_id = ${runId}::uuid
     ORDER BY c.code
@@ -269,8 +269,8 @@ export async function buildScoreSummary(
         r.id AS risk_id,
         r.code AS risk_code,
         r.name AS risk_name
-      FROM corpus.map_risk_control m
-      JOIN corpus.risk r
+      FROM graph.map_risk_control m
+      JOIN graph.risk r
         ON r.id = m.risk_id
       WHERE m.control_id IN (${Prisma.join(failedIds.map((id) => Prisma.sql`${id}::uuid`))})
         AND m.framework_version_id = ${run.framework_version_id}::uuid
@@ -290,8 +290,8 @@ export async function buildScoreSummary(
           r.id AS risk_id,
           r.code AS risk_code,
           r.name AS risk_name
-        FROM corpus.map_risk_control m
-        JOIN corpus.risk r
+        FROM graph.map_risk_control m
+        JOIN graph.risk r
           ON r.id = m.risk_id
         WHERE m.control_id IN (${Prisma.join(failedIds.map((id) => Prisma.sql`${id}::uuid`))})
       `);
@@ -304,24 +304,35 @@ export async function buildScoreSummary(
     }
   }
 
-  const obligations = await prisma.run_obligation_draft.findMany({
-    where: { run_id: runId },
-    select: {
-      obligation_id: true,
-      score: true,
-      obligation: {
-        select: {
-          id: true,
-          code: true,
-          title: true,
-          domain_id: true,
-          criticality: true,
-          evidence_strength: true,
-          is_hard_gate: true,
-        },
-      },
-    },
-  });
+  const obligations = (await prisma.$queryRaw(Prisma.sql`
+    SELECT
+      rod.obligation_id,
+      rod.score,
+      de.id,
+      de.code,
+      COALESCE(de.title, de.name, de.code) AS title,
+      mde.domain_id,
+      COALESCE(de.criticality, 3)::int AS criticality,
+      COALESCE(de.evidence_strength, 3)::int AS evidence_strength,
+      COALESCE(de.is_hard_gate, false) AS is_hard_gate
+    FROM score.run_obligation_draft rod
+    JOIN graph.domain_elements de
+      ON de.id = rod.obligation_id
+     AND de.element_type = 'OBLIGATION'
+    LEFT JOIN graph.map_domain_element mde
+      ON mde.element_id = de.id
+    WHERE rod.run_id = ${runId}::uuid
+  `)) as Array<{
+    obligation_id: string;
+    score: Prisma.Decimal | number | null;
+    id: string;
+    code: string;
+    title: string;
+    domain_id: string | null;
+    criticality: number;
+    evidence_strength: number;
+    is_hard_gate: boolean;
+  }>;
 
   const obligationIds = obligations.map((row) => row.obligation_id);
   const evaluatedCount = evaluated.length;
@@ -369,15 +380,13 @@ export async function buildScoreSummary(
     };
   }
 
-  const obligationControlLinks = await prisma.map_obligation_control.findMany({
-    where: {
-      obligation_id: { in: obligationIds },
-    },
-    select: {
-      obligation_id: true,
-      control_id: true,
-    },
-  });
+  const obligationControlLinks = obligationIds.length > 0
+    ? ((await prisma.$queryRaw(Prisma.sql`
+        SELECT element_id AS obligation_id, control_id
+        FROM graph.map_domain_elements_control
+        WHERE element_id IN (${Prisma.join(obligationIds.map((id) => Prisma.sql`${id}::uuid`))})
+      `)) as Array<{ obligation_id: string; control_id: string }>)
+    : [];
 
   const controlLinksByObligation = new Map<string, string[]>();
   for (const link of obligationControlLinks) {
@@ -396,19 +405,19 @@ export async function buildScoreSummary(
     const effectiveness = clamp01(maxControl);
     const fragility = clamp01(1 - effectiveness);
     const baseWeightRaw =
-      (row.obligation.criticality ?? 0) +
-      (row.obligation.evidence_strength ?? 0) +
-      (row.obligation.is_hard_gate ? 2 : 0);
+      (row.criticality ?? 0) +
+      (row.evidence_strength ?? 0) +
+      (row.is_hard_gate ? 2 : 0);
     const baseWeight = Math.max(1, toNumber(row.score) ?? baseWeightRaw);
     const exposure = baseWeight * fragility;
     return {
-      obligation_id: row.obligation.id,
-      obligation_code: row.obligation.code,
-      domain_id: row.obligation.domain_id,
+      obligation_id: row.id,
+      obligation_code: row.code,
+      domain_id: row.domain_id,
       effectiveness,
       fragility,
       exposure,
-      criticality: row.obligation.criticality ?? 3,
+      criticality: row.criticality ?? 3,
     };
   });
 
@@ -421,6 +430,7 @@ export async function buildScoreSummary(
   const domainMap = new Map<string, { obligations: typeof obligationResults; v_d: number }>();
 
   obligationResults.forEach((row) => {
+    if (!row.domain_id) return;
     const list = domainMap.get(row.domain_id)?.obligations ?? [];
     list.push(row);
     domainMap.set(row.domain_id, { obligations: list, v_d: 0 });
@@ -533,3 +543,4 @@ export async function buildScoreSummary(
     obligationEffectiveness,
   };
 }
+

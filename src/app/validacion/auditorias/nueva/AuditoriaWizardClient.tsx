@@ -8,8 +8,9 @@ import ScopeStep from './_components/ScopeStep';
 import TeamStep from './_components/TeamStep';
 import QuestionnaireStep from './_components/QuestionnaireStep';
 import ExtensionsStep from './_components/ExtensionsStep';
+import RiskAnalysisStep from './_components/RiskAnalysisStep';
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 
 type Option = { id: string; name: string; code?: string; frameworkId?: string; jurisdictionId?: string; version?: string };
 type UserOption = { id: string; label: string; email?: string };
@@ -499,9 +500,10 @@ export default function AuditoriaWizardClient() {
   const stepTitle = useMemo(() => {
     if (step === 1) return 'Configuracion: Acta de Inicio';
     if (step === 2) return 'Equipo';
-    if (step === 3) return 'Seleccion de auditoria';
-    if (step === 4) return 'Evaluacion de riesgos';
-    if (step === 5) return '';
+    if (step === 3) return 'Analisis de riesgo';
+    if (step === 4) return 'Seleccion de auditoria';
+    if (step === 5) return 'Evaluacion de riesgos';
+    if (step === 6) return '';
     return 'Wizard';
   }, [step]);
 
@@ -549,6 +551,15 @@ export default function AuditoriaWizardClient() {
       )}
 
       {step === 3 && (
+        <RiskAnalysisStep
+          draftId={draftId}
+          onBack={handleBack}
+          onNext={handleNext}
+          onSave={handleSave}
+        />
+      )}
+
+      {step === 4 && (
         <ScopeStep
           domainIds={scopeState.domainIds}
           obligationIds={scopeState.obligationIds}
@@ -561,7 +572,7 @@ export default function AuditoriaWizardClient() {
         />
       )}
 
-      {step === 4 && (
+      {step === 5 && (
         <QuestionnaireStep
           riskIds={scopeState.riskIds}
           evaluations={questionnaire}
@@ -572,7 +583,7 @@ export default function AuditoriaWizardClient() {
         />
       )}
 
-      {step === 5 && (
+      {step === 6 && (
         <ExtensionsStep
           extensions={extensions}
           onChange={setExtensions}

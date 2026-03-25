@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Eraser, Flame, Plus, Sparkles } from 'lucide-react';
 import styles from './RiskAnalysisStep.module.css';
+import RiskHeatmapModal from './RiskHeatmapModal';
 
 type RowMode = 'SYSTEM' | 'CUSTOM';
 
@@ -225,6 +226,7 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isHeatmapOpen, setIsHeatmapOpen] = useState(false);
 
   const pairMap = useMemo(() => {
     const map = new Map<string, SystemPair>();
@@ -732,7 +734,12 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
   };
 
   const handleHeatmapClick = () => {
-    setError('Mapa de calor disponible en la siguiente iteracion.');
+    if (sortedRows.length === 0) {
+      setError('Agrega al menos una fila al grid para generar el mapa de calor.');
+      return;
+    }
+    setError(null);
+    setIsHeatmapOpen(true);
   };
 
   if (loading) {
@@ -1003,6 +1010,8 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
           Continuar
         </button>
       </div>
+
+      <RiskHeatmapModal open={isHeatmapOpen} rows={sortedRows} onClose={() => setIsHeatmapOpen(false)} />
     </div>
   );
 }

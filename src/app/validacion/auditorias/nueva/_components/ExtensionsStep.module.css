@@ -23,6 +23,62 @@
   color: #94a3b8;
 }
 
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.summaryCard {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.summaryLabel {
+  font-size: 10px;
+  color: #93c5fd;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.summaryValue {
+  font-size: 22px;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.pendingBox {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.pendingTitle {
+  font-size: 11px;
+  font-weight: 800;
+  color: #86efac;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.pendingList {
+  margin: 0;
+  padding-left: 18px;
+  color: #cbd5f5;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .list {
   display: flex;
   flex-direction: column;

@@ -30,6 +30,7 @@ type ControlEvaluation = {
 };
 
 type QuestionnaireStepProps = {
+  draftId: string | null;
   riskIds: string[];
   evaluations: ControlEvaluation[];
   onChange: (next: ControlEvaluation[]) => void;
@@ -38,7 +39,17 @@ type QuestionnaireStepProps = {
   onSave: () => void;
 };
 
-export default function QuestionnaireStep({ riskIds, evaluations, onChange, onBack, onNext, onSave }: QuestionnaireStepProps) {
+type DraftRiskAnalysisRow = {
+  riskId: string;
+  riskName?: string | null;
+  mitigatingControlId?: string | null;
+  mitigatingControlName?: string | null;
+  mitigatingControlDescription?: string | null;
+};
+
+const pairKey = (riskId: string, controlId: string) => `${riskId}::${controlId}`;
+
+export default function QuestionnaireStep({ draftId, riskIds, evaluations, onChange, onBack, onNext, onSave }: QuestionnaireStepProps) {
   const [risks, setRisks] = useState<RiskItem[]>([]);
   const [controlsByRisk, setControlsByRisk] = useState<Record<string, ControlItem[]>>({});
   const [loading, setLoading] = useState(false);
@@ -47,8 +58,95 @@ export default function QuestionnaireStep({ riskIds, evaluations, onChange, onBa
   const [query, setQuery] = useState('');
   const [activeRiskId, setActiveRiskId] = useState<string | null>(null);
   const [sequenceIndex, setSequenceIndex] = useState(0);
+  const [effectiveRiskIds, setEffectiveRiskIds] = useState<string[]>(riskIds);
 
   useEffect(() => {
+    if (draftId) return;
+    setEffectiveRiskIds(riskIds);
+  }, [draftId, riskIds]);
+
+  useEffect(() => {
+    if (!draftId) return;
+
+    const loadFromDraft = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/audit/drafts/${draftId}/risk-analysis`, { cache: 'no-store' });
+        if (!res.ok) {
+          setRisks([]);
+          setControlsByRisk({});
+          setEffectiveRiskIds([]);
+          setActiveRiskId(null);
+          return;
+        }
+
+        const payload = await res.json();
+        const rows = Array.isArray(payload?.rows) ? (payload.rows as DraftRiskAnalysisRow[]) : [];
+
+        const orderedRiskIds: string[] = [];
+        const seenRisk = new Set<string>();
+        const byRisk: Record<string, ControlItem[]> = {};
+        const seenPair = new Set<string>();
+
+        rows.forEach((row) => {
+          const riskId = String(row?.riskId || '').trim();
+          if (!riskId) return;
+          if (!seenRisk.has(riskId)) {
+            seenRisk.add(riskId);
+            orderedRiskIds.push(riskId);
+            byRisk[riskId] = byRisk[riskId] || [];
+          }
+
+          const controlId = String(row?.mitigatingControlId || '').trim();
+          if (!controlId) return;
+
+          const key = pairKey(riskId, controlId);
+          if (seenPair.has(key)) return;
+          seenPair.add(key);
+
+          byRisk[riskId].push({
+            id: controlId,
+            name: row.mitigatingControlName || 'Control sin nombre',
+            description: row.mitigatingControlDescription || null,
+            coverageNotes: null
+          });
+        });
+
+        setEffectiveRiskIds(orderedRiskIds);
+        setControlsByRisk(byRisk);
+
+        if (orderedRiskIds.length === 0) {
+          setRisks([]);
+          setActiveRiskId(null);
+          return;
+        }
+
+        const risksRes = await fetch('/api/audit/catalog/risks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ riskIds: orderedRiskIds })
+        });
+
+        if (!risksRes.ok) {
+          setRisks([]);
+          setActiveRiskId(null);
+          return;
+        }
+
+        const riskData = await risksRes.json();
+        const normalized = Array.isArray(riskData) ? riskData : [];
+        setRisks(normalized);
+        setActiveRiskId((prev) => (prev && normalized.some((r) => r.id === prev) ? prev : normalized[0]?.id || null));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFromDraft();
+  }, [draftId]);
+
+  useEffect(() => {
+    if (draftId) return;
     if (riskIds.length === 0) {
       setRisks([]);
       setActiveRiskId(null);
@@ -75,9 +173,10 @@ export default function QuestionnaireStep({ riskIds, evaluations, onChange, onBa
       }
     };
     loadRisks();
-  }, [riskIds]);
+  }, [draftId, riskIds]);
 
   useEffect(() => {
+    if (draftId) return;
     if (riskIds.length === 0) {
       setControlsByRisk({});
       return;
@@ -96,16 +195,22 @@ export default function QuestionnaireStep({ riskIds, evaluations, onChange, onBa
       setControlsByRisk(data?.byRisk || {});
     };
     loadControls();
-  }, [riskIds]);
+  }, [draftId, riskIds]);
 
   useEffect(() => {
     if (evaluations.length === 0) return;
-    const allowed = new Set(riskIds);
-    const filtered = evaluations.filter((e) => allowed.has(e.riskId));
+    const allowedPairs = new Set(
+      Object.entries(controlsByRisk).flatMap(([riskId, controls]) => controls.map((control) => pairKey(riskId, control.id)))
+    );
+    const allowedRisks = new Set(effectiveRiskIds);
+    const filtered = evaluations.filter((e) => {
+      if (allowedPairs.size > 0) return allowedPairs.has(pairKey(e.riskId, e.controlId));
+      return allowedRisks.has(e.riskId);
+    });
     if (filtered.length !== evaluations.length) {
       onChange(filtered);
     }
-  }, [evaluations, riskIds, onChange]);
+  }, [controlsByRisk, effectiveRiskIds, evaluations, onChange]);
 
   const filteredRisks = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -125,8 +230,8 @@ export default function QuestionnaireStep({ riskIds, evaluations, onChange, onBa
   }, [evaluations]);
 
   const controlSequence = useMemo(() => {
-    return riskIds.flatMap((riskId) => (controlsByRisk[riskId] || []).map((control) => ({ riskId, control })));
-  }, [controlsByRisk, riskIds]);
+    return effectiveRiskIds.flatMap((riskId) => (controlsByRisk[riskId] || []).map((control) => ({ riskId, control })));
+  }, [controlsByRisk, effectiveRiskIds]);
 
   const scoreSnapshot = useMemo(() => {
     const weights: Record<ControlEvaluation['status'], number> = {
@@ -383,7 +488,7 @@ export default function QuestionnaireStep({ riskIds, evaluations, onChange, onBa
                     })}
                   </div>
                   <div className={styles.scoreMeta}>
-                    <span>{riskIds.length} riesgos</span>
+                    <span>{effectiveRiskIds.length} riesgos</span>
                     <span className={styles.scoreDivider} />
                     <span>{scoreSnapshot.totalControls} controles</span>
                     <span className={styles.scoreDivider} />
@@ -431,6 +536,7 @@ export default function QuestionnaireStep({ riskIds, evaluations, onChange, onBa
                               IA
                             </button>
                           </div>
+                          <p className={styles.howToInlineHint}>Aqui se describe como evaluar el control.</p>
                           <textarea
                             value={activeEvaluation?.howToEvaluate || activeControl.coverageNotes || ''}
                             onChange={(e) => updateEvaluation(activePair!.riskId, activeControl.id, { howToEvaluate: e.target.value })}

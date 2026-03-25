@@ -1,12 +1,36 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Sparkles } from 'lucide-react';
 import styles from './ExtensionsStep.module.css';
 
 type ExtensionItem = { title: string; notes: string; evidence?: string[] };
+type ControlEvaluation = {
+  riskId: string;
+  controlId: string;
+  status: 'cumple' | 'parcial' | 'no_cumple' | '';
+  notes: string;
+  howToEvaluate?: string;
+  evidence?: string[];
+};
+
+type DraftRiskAnalysisRow = {
+  riskId: string;
+  riskName?: string | null;
+  mitigatingControlId?: string | null;
+  mitigatingControlName?: string | null;
+};
+
+type SelectedPair = {
+  riskId: string;
+  riskName: string;
+  controlId: string;
+  controlName: string;
+};
 
 type ExtensionsStepProps = {
+  draftId: string | null;
+  evaluations: ControlEvaluation[];
   extensions: ExtensionItem[];
   onChange: (next: ExtensionItem[]) => void;
   onBack: () => void;
@@ -14,12 +38,61 @@ type ExtensionsStepProps = {
   onSave: () => void;
 };
 
-export default function ExtensionsStep({ extensions, onChange, onBack, onFinish, onSave }: ExtensionsStepProps) {
+const pairKey = (riskId: string, controlId: string) => `${riskId}::${controlId}`;
+
+export default function ExtensionsStep({ draftId, evaluations, extensions, onChange, onBack, onFinish, onSave }: ExtensionsStepProps) {
   const [aiLoading, setAiLoading] = useState<Record<number, boolean>>({});
+  const [selectedPairs, setSelectedPairs] = useState<SelectedPair[]>([]);
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   const addExtension = () => {
     onChange([...extensions, { title: '', notes: '', evidence: [] }]);
   };
+
+  useEffect(() => {
+    if (!draftId) {
+      setSelectedPairs([]);
+      setSummaryLoading(false);
+      return;
+    }
+
+    const loadSelectionSummary = async () => {
+      setSummaryLoading(true);
+      try {
+        const res = await fetch(`/api/audit/drafts/${draftId}/risk-analysis`, { cache: 'no-store' });
+        if (!res.ok) {
+          setSelectedPairs([]);
+          return;
+        }
+
+        const payload = await res.json();
+        const rows = Array.isArray(payload?.rows) ? (payload.rows as DraftRiskAnalysisRow[]) : [];
+        const nextPairs: SelectedPair[] = [];
+        const seen = new Set<string>();
+
+        rows.forEach((row) => {
+          const riskId = String(row?.riskId || '').trim();
+          const controlId = String(row?.mitigatingControlId || '').trim();
+          if (!riskId || !controlId) return;
+          const key = pairKey(riskId, controlId);
+          if (seen.has(key)) return;
+          seen.add(key);
+          nextPairs.push({
+            riskId,
+            riskName: row.riskName || 'Riesgo sin nombre',
+            controlId,
+            controlName: row.mitigatingControlName || 'Control sin nombre'
+          });
+        });
+
+        setSelectedPairs(nextPairs);
+      } finally {
+        setSummaryLoading(false);
+      }
+    };
+
+    loadSelectionSummary();
+  }, [draftId]);
 
   const updateExtension = (index: number, field: keyof ExtensionItem, value: string) => {
     const next = [...extensions];
@@ -66,10 +139,95 @@ export default function ExtensionsStep({ extensions, onChange, onBack, onFinish,
     }
   };
 
+  const summary = useMemo(() => {
+    const evalMap = new Map<string, ControlEvaluation>();
+    evaluations.forEach((ev) => evalMap.set(pairKey(ev.riskId, ev.controlId), ev));
+
+    const universe = selectedPairs.length > 0
+      ? selectedPairs
+      : evaluations.map((ev) => ({
+          riskId: ev.riskId,
+          riskName: 'Riesgo',
+          controlId: ev.controlId,
+          controlName: 'Control'
+        }));
+
+    let cumple = 0;
+    let parcial = 0;
+    let noCumple = 0;
+    let pendientes = 0;
+
+    const pendingItems: string[] = [];
+
+    universe.forEach((pair) => {
+      const status = evalMap.get(pairKey(pair.riskId, pair.controlId))?.status || '';
+      if (status === 'cumple') cumple += 1;
+      else if (status === 'parcial') parcial += 1;
+      else if (status === 'no_cumple') noCumple += 1;
+      else {
+        pendientes += 1;
+        pendingItems.push(`${pair.riskName} -> ${pair.controlName}`);
+      }
+    });
+
+    const total = universe.length;
+    const evaluated = cumple + parcial + noCumple;
+    const avance = total > 0 ? Math.round((evaluated / total) * 100) : 0;
+
+    return {
+      total,
+      evaluated,
+      pendiente: pendientes,
+      cumple,
+      parcial,
+      noCumple,
+      avance,
+      pendingItems: pendingItems.slice(0, 6)
+    };
+  }, [evaluations, selectedPairs]);
+
   return (
     <div className={styles.root}>
       <div className={styles.header}>
+        <div className={styles.title}>Resumen Paso 5</div>
+        <div className={styles.subtitle}>Estado consolidado de la evaluación de controles seleccionados en el Paso 2.</div>
       </div>
+
+      <div className={styles.summaryGrid}>
+        <div className={styles.summaryCard}>
+          <span className={styles.summaryLabel}>Controles seleccionados</span>
+          <span className={styles.summaryValue}>{summaryLoading ? '...' : summary.total}</span>
+        </div>
+        <div className={styles.summaryCard}>
+          <span className={styles.summaryLabel}>Controles evaluados</span>
+          <span className={styles.summaryValue}>{summaryLoading ? '...' : summary.evaluated}</span>
+        </div>
+        <div className={styles.summaryCard}>
+          <span className={styles.summaryLabel}>Avance</span>
+          <span className={styles.summaryValue}>{summaryLoading ? '...' : `${summary.avance}%`}</span>
+        </div>
+        <div className={styles.summaryCard}>
+          <span className={styles.summaryLabel}>Pendientes</span>
+          <span className={styles.summaryValue}>{summaryLoading ? '...' : summary.pendiente}</span>
+        </div>
+        <div className={styles.summaryCard}>
+          <span className={styles.summaryLabel}>Cumple / Parcial / No cumple</span>
+          <span className={styles.summaryValue}>
+            {summaryLoading ? '...' : `${summary.cumple} / ${summary.parcial} / ${summary.noCumple}`}
+          </span>
+        </div>
+      </div>
+
+      {!summaryLoading && summary.pendingItems.length > 0 && (
+        <div className={styles.pendingBox}>
+          <div className={styles.pendingTitle}>Pendientes clave</div>
+          <ul className={styles.pendingList}>
+            {summary.pendingItems.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className={styles.list}>
         {extensions.map((item, idx) => (

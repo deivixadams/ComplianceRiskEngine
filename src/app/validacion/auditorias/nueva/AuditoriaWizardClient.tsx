@@ -84,6 +84,23 @@ type ExtensionItem = { title: string; notes: string; evidence?: string[] };
 
 const defaultCounts: DerivedCounts = { obligationCount: 0, riskCount: 0, controlCount: 0, testCount: 0 };
 
+function sameStringArray(a: string[], b: string[]) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+function sameDerivedCounts(a: DerivedCounts, b: DerivedCounts) {
+  return (
+    a.obligationCount === b.obligationCount &&
+    a.riskCount === b.riskCount &&
+    a.controlCount === b.controlCount &&
+    a.testCount === b.testCount
+  );
+}
+
 function buildDefaultActa(): ActaData {
   const today = new Date();
   const yyyy = today.getFullYear();
@@ -149,6 +166,24 @@ export default function AuditoriaWizardClient() {
   const saveTimeout = useRef<NodeJS.Timeout | null>(null);
   const initializedRef = useRef(false);
   const seededTeamRef = useRef(false);
+
+  const handleScopeStepChange = useCallback((next: { domainIds: string[]; obligationIds: string[]; riskIds: string[]; derivedCounts: DerivedCounts }) => {
+    setScopeState((prev) => {
+      const nextState: ScopeState = {
+        ...prev,
+        ...next,
+        selectedReinoId: prev.selectedReinoId
+      };
+
+      const unchanged =
+        sameStringArray(prev.domainIds, nextState.domainIds) &&
+        sameStringArray(prev.obligationIds, nextState.obligationIds) &&
+        sameStringArray(prev.riskIds, nextState.riskIds) &&
+        sameDerivedCounts(prev.derivedCounts, nextState.derivedCounts);
+
+      return unchanged ? prev : nextState;
+    });
+  }, []);
 
   const buildTeamFromActa = useCallback((): TeamMember[] => {
     const idToLabel = new Map(companyUsers.map((user) => [user.id, user.label]));
@@ -646,7 +681,7 @@ export default function AuditoriaWizardClient() {
           obligationIds={scopeState.obligationIds}
           riskIds={scopeState.riskIds}
           derivedCounts={scopeState.derivedCounts}
-          onChange={(next) => setScopeState((prev) => ({ ...prev, ...next, selectedReinoId: prev.selectedReinoId }))}
+          onChange={handleScopeStepChange}
           onBack={handleBack}
           onNext={handleNext}
           onSave={handleSave}
@@ -655,6 +690,7 @@ export default function AuditoriaWizardClient() {
 
       {step === 5 && (
         <QuestionnaireStep
+          draftId={draftId}
           riskIds={scopeState.riskIds}
           evaluations={questionnaire}
           onChange={setQuestionnaire}
@@ -666,6 +702,8 @@ export default function AuditoriaWizardClient() {
 
       {step === 6 && (
         <ExtensionsStep
+          draftId={draftId}
+          evaluations={questionnaire}
           extensions={extensions}
           onChange={setExtensions}
           onBack={handleBack}

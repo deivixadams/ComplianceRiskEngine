@@ -586,6 +586,12 @@
   color: #93c5fd;
 }
 
+.howToInlineHint {
+  margin: 0;
+  font-size: 11px;
+  color: #9fb4d2;
+}
+
 .howToInlineTextarea {
   width: 100%;
   background: rgba(2, 6, 23, 0.4);

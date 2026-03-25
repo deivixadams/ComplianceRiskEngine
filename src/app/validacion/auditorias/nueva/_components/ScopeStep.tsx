@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Layers3, ShieldCheck, CheckSquare, FilterX } from 'lucide-react';
 import styles from './ScopeStep.module.css';
 
@@ -39,6 +39,15 @@ type ScopeStepProps = {
 
 const defaultCounts: DerivedCounts = { obligationCount: 0, riskCount: 0, controlCount: 0, testCount: 0 };
 
+function sameDerivedCounts(a: DerivedCounts, b: DerivedCounts) {
+  return (
+    a.obligationCount === b.obligationCount &&
+    a.riskCount === b.riskCount &&
+    a.controlCount === b.controlCount &&
+    a.testCount === b.testCount
+  );
+}
+
 type DraftRiskAnalysisRow = {
   riskId: string;
   riskCode?: string | null;
@@ -51,9 +60,15 @@ type DraftRiskAnalysisRow = {
 export default function ScopeStep({ draftId, domainIds, selectedDomainName, obligationIds, riskIds, derivedCounts, onChange, onBack, onNext, onSave }: ScopeStepProps) {
   const [obligations, setObligations] = useState<Obligation[]>([]);
   const [obligationsLoading, setObligationsLoading] = useState(false);
+  const [selectedElements, setSelectedElements] = useState<string[]>([]);
   const [risks, setRisks] = useState<Risk[]>([]);
   const [risksLoading, setRisksLoading] = useState(false);
   const [mode, setMode] = useState<'all' | 'subset'>('all');
+  const onChangeRef = useRef(onChange);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   useEffect(() => {
     if (domainIds.length === 0) {
@@ -79,6 +94,8 @@ export default function ScopeStep({ draftId, domainIds, selectedDomainName, obli
   }, [domainIds]);
 
   useEffect(() => {
+    let cancelled = false;
+
     const derive = async () => {
       const res = await fetch('/api/audit/derive-scope', {
         method: 'POST',
@@ -87,15 +104,27 @@ export default function ScopeStep({ draftId, domainIds, selectedDomainName, obli
       });
       if (!res.ok) return;
       const data = await res.json();
-      onChange({ domainIds, obligationIds, riskIds, derivedCounts: data });
+      if (cancelled) return;
+      const nextCounts: DerivedCounts = {
+        obligationCount: Number(data?.obligationCount ?? 0),
+        riskCount: Number(data?.riskCount ?? 0),
+        controlCount: Number(data?.controlCount ?? 0),
+        testCount: Number(data?.testCount ?? 0)
+      };
+      if (sameDerivedCounts(derivedCounts, nextCounts)) return;
+      onChangeRef.current({ domainIds, obligationIds, riskIds, derivedCounts: nextCounts });
     };
 
     derive();
-  }, [domainIds, obligationIds, mode, onChange]);
+    return () => {
+      cancelled = true;
+    };
+  }, [domainIds, obligationIds, mode, derivedCounts, riskIds]);
 
   useEffect(() => {
     if (domainIds.length === 0) {
       setRisks([]);
+      setSelectedElements([]);
       setRisksLoading(false);
       return;
     }
@@ -107,18 +136,21 @@ export default function ScopeStep({ draftId, domainIds, selectedDomainName, obli
           const res = await fetch(`/api/audit/drafts/${draftId}/risk-analysis`, { cache: 'no-store' });
           if (!res.ok) {
             setRisks([]);
+            setSelectedElements([]);
             return;
           }
 
           const payload = await res.json();
           const draftRows = Array.isArray(payload?.rows) ? (payload.rows as DraftRiskAnalysisRow[]) : [];
           const grouped = new Map<string, { risk: Risk; elements: Set<string> }>();
+          const elementSet = new Set<string>();
 
           draftRows.forEach((row) => {
             const riskId = row.riskId;
             if (!riskId) return;
             const riskName = row.riskName || row.riskCode || 'Sin riesgo';
             const elementName = (row.customElementName || row.elementName || '').trim();
+            if (elementName) elementSet.add(elementName);
             const existing = grouped.get(riskId);
 
             if (!existing) {
@@ -147,6 +179,7 @@ export default function ScopeStep({ draftId, domainIds, selectedDomainName, obli
             }))
             .sort((a, b) => a.name.localeCompare(b.name));
 
+          setSelectedElements([...elementSet].sort((a, b) => a.localeCompare(b)));
           setRisks(nextRisks);
         } finally {
           setRisksLoading(false);
@@ -156,6 +189,8 @@ export default function ScopeStep({ draftId, domainIds, selectedDomainName, obli
       loadRisksFromDraft();
       return;
     }
+
+    setSelectedElements([]);
 
     if (mode === 'subset' && obligationIds.length === 0) {
       setRisks([]);
@@ -197,9 +232,9 @@ export default function ScopeStep({ draftId, domainIds, selectedDomainName, obli
     const allowed = new Set(risks.map((risk) => risk.id));
     const filtered = riskIds.filter((riskId) => allowed.has(riskId));
     if (filtered.length !== riskIds.length) {
-      onChange({ domainIds, obligationIds, riskIds: filtered, derivedCounts: derivedCounts ?? defaultCounts });
+      onChangeRef.current({ domainIds, obligationIds, riskIds: filtered, derivedCounts: derivedCounts ?? defaultCounts });
     }
-  }, [risks, riskIds, domainIds, obligationIds, derivedCounts, onChange]);
+  }, [risks, riskIds, domainIds, obligationIds, derivedCounts]);
 
   const obligationsVisible = useMemo(() => {
     if (mode === 'all') return [];
@@ -265,32 +300,48 @@ export default function ScopeStep({ draftId, domainIds, selectedDomainName, obli
 
         <div className={styles.card}>
           <div className={styles.cardHeaderRow}>
-            <div className={styles.cardTitleSimple}>Obligaciones</div>
-            <div className={styles.toggleGroup}>
-              <label className={styles.toggleOption}>
-                <input type="radio" checked={mode === 'all'} onChange={() => setMode('all')} />
-                Todas
-              </label>
-              <label className={styles.toggleOption}>
-                <input type="radio" checked={mode === 'subset'} onChange={() => setMode('subset')} />
-                Subset
-              </label>
-            </div>
-          </div>
-          {mode === 'all' && (
-            <p className={styles.helperText}>Se incluyen todas las obligaciones de los dominios seleccionados.</p>
-          )}
-          <div className={styles.scrollList}>
-            {domainIds.length === 0 && (
-              <div className={styles.helperText}>Selecciona dominios para cargar obligaciones.</div>
+            <div className={styles.cardTitleSimple}>Elementos</div>
+            {!draftId && (
+              <div className={styles.toggleGroup}>
+                <label className={styles.toggleOption}>
+                  <input type="radio" checked={mode === 'all'} onChange={() => setMode('all')} />
+                  Todas
+                </label>
+                <label className={styles.toggleOption}>
+                  <input type="radio" checked={mode === 'subset'} onChange={() => setMode('subset')} />
+                  Subset
+                </label>
+              </div>
             )}
-            {domainIds.length > 0 && obligationsLoading && (
+          </div>
+          {draftId ? (
+            <p className={styles.helperText}>Elementos seleccionados en el Paso 2 (Analisis de riesgo).</p>
+          ) : mode === 'all' ? (
+            <p className={styles.helperText}>Se incluyen todas las obligaciones de los dominios seleccionados.</p>
+          ) : null}
+          <div className={styles.scrollList}>
+            {draftId ? (
+              <>
+                {selectedElements.length === 0 && (
+                  <div className={styles.helperText}>Aun no hay elementos seleccionados en el Paso 2.</div>
+                )}
+                {selectedElements.map((elementName) => (
+                  <label key={elementName} className={styles.optionRow}>
+                    <input type="checkbox" checked disabled />
+                    {elementName}
+                  </label>
+                ))}
+              </>
+            ) : domainIds.length === 0 ? (
+              <div className={styles.helperText}>Selecciona dominios para cargar obligaciones.</div>
+            ) : null}
+            {!draftId && domainIds.length > 0 && obligationsLoading && (
               <div className={styles.helperText}>Cargando obligaciones...</div>
             )}
-            {domainIds.length > 0 && !obligationsLoading && obligations.length === 0 && (
+            {!draftId && domainIds.length > 0 && !obligationsLoading && obligations.length === 0 && (
               <div className={styles.helperText}>Sin obligaciones para los dominios seleccionados.</div>
             )}
-            {domainIds.length > 0 && !obligationsLoading && (mode === 'subset' ? obligationsVisible : obligations).map((obl) => (
+            {!draftId && domainIds.length > 0 && !obligationsLoading && (mode === 'subset' ? obligationsVisible : obligations).map((obl) => (
               <label key={obl.id} className={styles.optionRow}>
                 <input
                   type="checkbox"

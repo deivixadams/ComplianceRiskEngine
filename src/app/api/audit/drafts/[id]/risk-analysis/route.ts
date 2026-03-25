@@ -1148,9 +1148,9 @@ export async function PUT(
           : null;
         const mitigationLevel = mitigationStrength == null ? null : (mitigationStrength >= 4 ? 'TOTAL' : 'PARCIAL');
 
-        const dedupeKey = `SYSTEM::${riskId}::${elementId}`;
+        const dedupeKey = `SYSTEM::${riskId}::${elementId}::${mitigatingControlId ?? ''}`;
         if (duplicateGuard.has(dedupeKey)) {
-          return NextResponse.json({ error: 'Hay filas duplicadas para el mismo riesgo-elemento.' }, { status: 400 });
+          return NextResponse.json({ error: 'Hay filas duplicadas para el mismo riesgo-elemento-control.' }, { status: 400 });
         }
         duplicateGuard.add(dedupeKey);
 
@@ -1204,9 +1204,9 @@ export async function PUT(
         : null;
       const mitigationLevel = mitigationStrength == null ? null : (mitigationStrength >= 4 ? 'TOTAL' : 'PARCIAL');
 
-      const dedupeKey = `CUSTOM::${riskId}::${customElementName.toLowerCase()}`;
+      const dedupeKey = `CUSTOM::${riskId}::${customElementName.toLowerCase()}::${mitigatingControlId ?? ''}`;
       if (duplicateGuard.has(dedupeKey)) {
-        return NextResponse.json({ error: 'Hay filas CUSTOM duplicadas para el mismo riesgo/elemento.' }, { status: 400 });
+        return NextResponse.json({ error: 'Hay filas CUSTOM duplicadas para el mismo riesgo/elemento/control.' }, { status: 400 });
       }
       duplicateGuard.add(dedupeKey);
 
@@ -1337,6 +1337,19 @@ export async function PUT(
     return NextResponse.json({ ok: true, count: validatedRows.length, domainIds: selectedDomainIds, reinoId: selection.selectedReinoId ?? null });
   } catch (error) {
     console.error('Error saving risk analysis draft rows:', error);
+    const pgError = error as { code?: string; constraint?: string; detail?: string };
+    if (pgError?.code === '23505') {
+      return NextResponse.json(
+        {
+          error:
+            pgError.constraint === 'audit_draft_risk_analysis_pkey'
+              ? 'La tabla de borrador de riesgo usa una PK legacy (draft+risk+element). Ejecuta la migracion 20260325_fix_audit_draft_risk_analysis_pk_and_uniques_v2.sql.'
+              : 'Conflicto de unicidad al guardar filas de analisis de riesgo.',
+          constraint: pgError.constraint ?? null
+        },
+        { status: 409 }
+      );
+    }
     return NextResponse.json({ error: 'Failed to save risk analysis rows' }, { status: 500 });
   }
 }

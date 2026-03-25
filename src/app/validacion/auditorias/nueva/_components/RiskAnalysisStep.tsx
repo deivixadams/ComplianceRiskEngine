@@ -570,10 +570,6 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
         setError('Completa Probabilidad e Impacto antes de agregar.');
         return;
       }
-      if (rows.some((row) => row.rowMode === 'SYSTEM' && row.elementId === elementId && row.riskId === riskId)) {
-        setError('Ese par elemento-riesgo ya existe en el grid.');
-        return;
-      }
 
       const element = elementMap.get(elementId);
       const risk = riskMap.get(riskId);
@@ -581,6 +577,20 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
         || pairMap.get(`${riskId}::${elementId}`)?.mitigatingControlId
         || getControlOptionsForRisk(riskId)[0]?.id
         || '';
+
+      if (
+        rows.some(
+          (row) =>
+            row.rowMode === 'SYSTEM' &&
+            row.elementId === elementId &&
+            row.riskId === riskId &&
+            (row.mitigatingControlId ?? '') === selectedControlId
+        )
+      ) {
+        setError('Ese elemento con el mismo riesgo y control ya existe en el grid.');
+        return;
+      }
+
       const selectedControlMeta = selectedControlId ? controlMap.get(selectedControlId) : null;
       const selectedStrength = selectedControlId ? (riskControlStrengthMap.get(`${riskId}::${selectedControlId}`) ?? 1) : null;
       const baseScore = computeInherentRisk(composer.probability, composer.impact);
@@ -635,13 +645,23 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
       setError('Completa Probabilidad e Impacto antes de agregar.');
       return;
     }
-    if (rows.some((row) => row.rowMode === 'CUSTOM' && (row.customElementName || '').trim().toLowerCase() === customElementName.toLowerCase() && row.riskId === composer.riskId)) {
-      setError('Ese elemento nuevo con el mismo riesgo ya existe en el grid.');
-      return;
-    }
 
     const risk = riskMap.get(composer.riskId);
     const selectedControlId = composer.mitigatingControlId || getControlOptionsForRisk(composer.riskId)[0]?.id || '';
+
+    if (
+      rows.some(
+        (row) =>
+          row.rowMode === 'CUSTOM' &&
+          (row.customElementName || '').trim().toLowerCase() === customElementName.toLowerCase() &&
+          row.riskId === composer.riskId &&
+          (row.mitigatingControlId ?? '') === selectedControlId
+      )
+    ) {
+      setError('Ese elemento nuevo con el mismo riesgo y control ya existe en el grid.');
+      return;
+    }
+
     const selectedControlMeta = selectedControlId ? controlMap.get(selectedControlId) : null;
     const selectedStrength = selectedControlId ? (riskControlStrengthMap.get(`${composer.riskId}::${selectedControlId}`) ?? 1) : null;
     const baseScore = computeInherentRisk(composer.probability, composer.impact);
@@ -743,20 +763,8 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
   };
 
   const handleLaunchAuditFromHeatmap = async () => {
-    if (rows.length === 0) {
-      setError('Agrega al menos un elemento-riesgo al grid para continuar.');
-      return;
-    }
-    if (hasBlockingRows) {
-      setError('Existen filas incompletas. Completa/corrige antes de continuar.');
-      return;
-    }
-
-    const ok = await persist();
-    if (!ok) return;
-
     setIsHeatmapOpen(false);
-    onNext();
+    await handleNextClick();
   };
 
   if (loading) {

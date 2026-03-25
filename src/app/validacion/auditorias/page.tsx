@@ -92,8 +92,8 @@ export default function AuditDashboard() {
                         <ClipboardList size={32} className="text-blue-500" />
                     </div>
                     <div>
-                        <h1 style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '-0.02em', margin: 0 }}>Auditoría AML</h1>
-                        <p style={{ color: '#71717a', fontSize: '1rem', marginTop: '0.25rem' }}>Gestión centralizada de evaluaciones de cumplimiento y hallazgos materiales.</p>
+                        <h1 style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '-0.02em', margin: 0 }}>Auditorías</h1>
+                        <p style={{ color: '#71717a', fontSize: '1rem', marginTop: '0.25rem' }}>Gestión centralizada de auditorías y hallazgos materiales.</p>
                     </div>
                 </div>
 
@@ -230,6 +230,4 @@ export default function AuditDashboard() {
         </div>
     );
 }
-
-
 

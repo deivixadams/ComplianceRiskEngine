@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       companyId,
-      frameworkSourceId,
+      frameworkVersionId: frameworkVersionIdInput,
       periodStart,
       periodEnd,
       mode,
@@ -28,17 +28,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    let frameworkVersionId = null as string | null;
-    if (frameworkSourceId) {
-      const source = await prisma.framework_source.findUnique({
-        where: { id: frameworkSourceId },
-        select: { framework_version_id: true },
-      });
-      frameworkVersionId = source?.framework_version_id || null;
-    }
-
+    const frameworkVersionId = typeof frameworkVersionIdInput === 'string'
+      ? frameworkVersionIdInput
+      : null;
     if (!frameworkVersionId) {
-      return NextResponse.json({ error: 'framework_source_id invalido o sin version asociada' }, { status: 400 });
+      return NextResponse.json({ error: 'framework_version_id es requerido' }, { status: 400 });
     }
 
     if (mode === 'top20') {

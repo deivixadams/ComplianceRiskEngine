@@ -60,10 +60,7 @@ export default function ScoreWizardClient() {
   const [endDateAuto, setEndDateAuto] = useState(true);
   const [contextLoaded, setContextLoaded] = useState(false);
   const [scopeMode, setScopeMode] = useState<'top20' | 'all' | null>(null);
-  const [jurisdictionName, setJurisdictionName] = useState('');
-  const [frameworkName, setFrameworkName] = useState('');
-  const [frameworkSourceLabel, setFrameworkSourceLabel] = useState('');
-  const [frameworkSourceId, setFrameworkSourceId] = useState('');
+  const [frameworkVersionId, setFrameworkVersionId] = useState('');
   const [selection, setSelection] = useState<SelectionPayload | null>(null);
   const [selectionLoading, setSelectionLoading] = useState(false);
   const [selectionError, setSelectionError] = useState<string | null>(null);
@@ -146,15 +143,11 @@ export default function ScoreWizardClient() {
         if (!selectedCompanyId && list.length > 0) {
           setSelectedCompanyId(list[0].id);
         }
-        const jurisdiction = Array.isArray(data?.jurisdictions) ? data.jurisdictions[0] : null;
-        const frameworkSources = Array.isArray(data?.frameworkSources) ? data.frameworkSources : [];
-        const frameworks = Array.isArray(data?.frameworks) ? data.frameworks : [];
-        const latestSource = frameworkSources[0];
-        const framework = frameworks.find((f: any) => f.id === latestSource?.frameworkId);
-        if (jurisdiction?.name) setJurisdictionName(jurisdiction.name);
-        if (framework?.name) setFrameworkName(framework.name);
-        if (latestSource?.citation) setFrameworkSourceLabel(latestSource.citation);
-        if (latestSource?.id) setFrameworkSourceId(latestSource.id);
+        const frameworkVersions = Array.isArray(data?.frameworkVersions) ? data.frameworkVersions : [];
+        const latestVersion = frameworkVersions[0];
+        if (latestVersion?.id) {
+          setFrameworkVersionId((prev) => prev || latestVersion.id);
+        }
         setContextLoaded(true);
       } catch {
         if (alive) setContextLoaded(true);
@@ -209,7 +202,9 @@ export default function ScoreWizardClient() {
         if (!res.ok) return;
         const data = await res.json();
         if (!alive) return;
-        if (data?.frameworkSourceId) setFrameworkSourceId(data.frameworkSourceId);
+        if (data?.frameworkVersionId) {
+          setFrameworkVersionId(data.frameworkVersionId);
+        }
       } catch {
         return;
       }
@@ -248,7 +243,7 @@ export default function ScoreWizardClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           companyId: selectedCompanyId,
-          frameworkSourceId,
+          frameworkVersionId,
           periodStart: startDate,
           periodEnd: endDate,
           mode,
@@ -272,12 +267,12 @@ export default function ScoreWizardClient() {
   useEffect(() => {
     if (step !== 2) return;
     if (selection || selectionLoading) return;
-    if (!selectedCompanyId || !startDate || !endDate || !frameworkSourceId) return;
-    const key = `${selectedCompanyId}:${frameworkSourceId}:${startDate}:${endDate}`;
+    if (!selectedCompanyId || !startDate || !endDate || !frameworkVersionId) return;
+    const key = `${selectedCompanyId}:${frameworkVersionId}:${startDate}:${endDate}`;
     if (autoSelectKeyRef.current === key) return;
     autoSelectKeyRef.current = key;
     handleSelection('top20');
-  }, [step, selection, selectionLoading, selectedCompanyId, startDate, endDate, frameworkSourceId]);
+  }, [step, selection, selectionLoading, selectedCompanyId, startDate, endDate, frameworkVersionId]);
 
   return (
     <div className={styles.shellWrapper}>

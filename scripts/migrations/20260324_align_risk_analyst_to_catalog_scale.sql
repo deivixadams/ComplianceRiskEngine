@@ -1,3 +1,58 @@
+-- Align risk analysis with catalog-driven scales and domain-driven real-data view
+-- Date: 2026-03-24
+
+CREATE SCHEMA IF NOT EXISTS catalogos;
+
+ALTER TABLE IF EXISTS catalogos.corpus_catalog_probability
+  DROP CONSTRAINT IF EXISTS chk_corpus_catalog_probability_base_value;
+
+ALTER TABLE IF EXISTS catalogos.corpus_catalog_probability
+  ADD CONSTRAINT chk_corpus_catalog_probability_base_value
+  CHECK (base_value >= 1 AND base_value <= 5);
+
+ALTER TABLE IF EXISTS catalogos.corpus_catalog_impact
+  DROP CONSTRAINT IF EXISTS chk_corpus_catalog_impact_base_value;
+
+ALTER TABLE IF EXISTS catalogos.corpus_catalog_impact
+  ADD CONSTRAINT chk_corpus_catalog_impact_base_value
+  CHECK (base_value >= 1 AND base_value <= 5);
+
+INSERT INTO catalogos.corpus_catalog_probability (code, name, description, base_value, sort_order, is_active)
+VALUES
+  ('VL', 'Muy Baja', 'Probabilidad muy baja de materializacion del riesgo.', 1.0000, 10, true),
+  ('L',  'Baja',     'Probabilidad baja de materializacion del riesgo.',      2.0000, 20, true),
+  ('M',  'Media',    'Probabilidad media de materializacion del riesgo.',     3.0000, 30, true),
+  ('H',  'Alta',     'Probabilidad alta de materializacion del riesgo.',      4.0000, 40, true),
+  ('VH', 'Muy Alta', 'Probabilidad muy alta de materializacion del riesgo.',  5.0000, 50, true)
+ON CONFLICT (code)
+DO UPDATE
+SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  base_value = EXCLUDED.base_value,
+  sort_order = EXCLUDED.sort_order,
+  is_active = EXCLUDED.is_active;
+
+INSERT INTO catalogos.corpus_catalog_impact (code, name, description, base_value, sort_order, is_active)
+VALUES
+  ('VL', 'Muy Bajo', 'Impacto muy bajo sobre negocio, cumplimiento o reputacion.', 1.0000, 10, true),
+  ('L',  'Bajo',     'Impacto bajo sobre negocio, cumplimiento o reputacion.',      2.0000, 20, true),
+  ('M',  'Medio',    'Impacto medio sobre negocio, cumplimiento o reputacion.',     3.0000, 30, true),
+  ('H',  'Alto',     'Impacto alto sobre negocio, cumplimiento o reputacion.',      4.0000, 40, true),
+  ('VH', 'Muy Alto', 'Impacto muy alto sobre negocio, cumplimiento o reputacion.',  5.0000, 50, true)
+ON CONFLICT (code)
+DO UPDATE
+SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  base_value = EXCLUDED.base_value,
+  sort_order = EXCLUDED.sort_order,
+  is_active = EXCLUDED.is_active;
+
+-- Optional cleanup of synthetic bootstrap values
+DELETE FROM graph.risk_analyst
+WHERE source = 'bootstrap_map_domain_elements_risk_v1';
+
 CREATE OR REPLACE VIEW graph.v_risk_analyst AS
 SELECT
   mde.domain_id,

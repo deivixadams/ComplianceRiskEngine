@@ -62,6 +62,7 @@ type DerivedCounts = {
 };
 
 type ScopeState = {
+  selectedReinoId: string;
   domainIds: string[];
   obligationIds: string[];
   riskIds: string[];
@@ -123,9 +124,10 @@ export default function AuditoriaWizardClient() {
   const [options, setOptions] = useState<{ jurisdictions: Option[]; frameworks: Option[]; versions: Option[]; companies: Option[] }>(
     { jurisdictions: [], frameworks: [], versions: [], companies: [] }
   );
-  const [domainCatalog, setDomainCatalog] = useState<{ id: string; name: string }[]>([]);
+  const [reinoCatalog, setReinoCatalog] = useState<{ id: string; name: string; code?: string }[]>([]);
   const [companyUsers, setCompanyUsers] = useState<UserOption[]>([]);
   const [scopeState, setScopeState] = useState<ScopeState>({
+    selectedReinoId: '',
     domainIds: [],
     obligationIds: [],
     riskIds: [],
@@ -203,12 +205,52 @@ export default function AuditoriaWizardClient() {
     });
   }, []);
 
-  const loadDomainCatalog = useCallback(async () => {
+  const loadReinoCatalog = useCallback(async () => {
     const res = await fetch('/api/audit/catalog/domains');
     if (!res.ok) return;
     const data = await res.json();
-    setDomainCatalog(data || []);
+    setReinoCatalog(data || []);
   }, []);
+
+  const fetchDomainsByReinoId = useCallback(async (reinoId: string): Promise<string[]> => {
+    if (!reinoId) return [];
+    const res = await fetch(`/api/audit/catalog/reino-domains?reino_id=${encodeURIComponent(reinoId)}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  }, []);
+
+  const applyReinoSelection = useCallback(async (reinoId: string) => {
+    if (!reinoId) {
+      setScopeState((prev) => ({
+        ...prev,
+        selectedReinoId: '',
+        domainIds: [],
+        obligationIds: [],
+        riskIds: [],
+        derivedCounts: defaultCounts
+      }));
+      return;
+    }
+
+    setScopeState((prev) => ({
+      ...prev,
+      selectedReinoId: reinoId,
+      domainIds: [],
+      obligationIds: [],
+      riskIds: [],
+      derivedCounts: defaultCounts
+    }));
+
+    const domainIds = await fetchDomainsByReinoId(reinoId);
+    setScopeState((prev) => {
+      if (prev.selectedReinoId !== reinoId) return prev;
+      return {
+        ...prev,
+        domainIds
+      };
+    });
+  }, [fetchDomainsByReinoId]);
 
   const hydrateDraft = useCallback((draft: DraftRecord) => {
     setDraftId(draft.id);
@@ -224,8 +266,15 @@ export default function AuditoriaWizardClient() {
       setActa({ ...buildDefaultActa(), ...draft.acta });
     }
     if (draft.scopeConfig) {
+      const selectedReinoId = draft.scopeConfig.selected_reino_id ?? '';
+      const selectedDomainId = draft.scopeConfig.selected_domain_id ?? null;
+      const hydratedDomainIds = Array.isArray(draft.scopeConfig.domain_ids) ? draft.scopeConfig.domain_ids : [];
+      const domainIds = hydratedDomainIds.length > 0
+        ? hydratedDomainIds
+        : (selectedDomainId ? [selectedDomainId] : []);
       setScopeState({
-        domainIds: draft.scopeConfig.domain_ids ?? [],
+        selectedReinoId,
+        domainIds,
         obligationIds: draft.scopeConfig.obligation_ids ?? [],
         riskIds: draft.scopeConfig.risk_ids ?? [],
         derivedCounts: draft.scopeConfig.derived_counts ?? defaultCounts
@@ -282,7 +331,9 @@ export default function AuditoriaWizardClient() {
         frameworkVersionId: context.frameworkVersionId || null,
         companyId: context.companyId || null,
         scopeConfig: {
+          selected_reino_id: scopeState.selectedReinoId || null,
           domain_ids: scopeState.domainIds,
+          selected_domain_id: scopeState.domainIds[0] || null,
           obligation_ids: scopeState.obligationIds,
           risk_ids: scopeState.riskIds,
           derived_counts: scopeState.derivedCounts
@@ -302,7 +353,7 @@ export default function AuditoriaWizardClient() {
   useEffect(() => {
     const boot = async () => {
       setLoading(true);
-      await Promise.all([loadContextOptions(), loadDomainCatalog()]);
+      await Promise.all([loadContextOptions(), loadReinoCatalog()]);
       const existingDraft = searchParams.get('draft');
       const draft = existingDraft ? await loadDraft(existingDraft) : await createDraft();
       if (draft) {
@@ -312,7 +363,7 @@ export default function AuditoriaWizardClient() {
       initializedRef.current = true;
     };
     boot();
-  }, [createDraft, loadContextOptions, loadDraft, hydrateDraft, loadDomainCatalog, searchParams]);
+  }, [createDraft, loadContextOptions, loadDraft, hydrateDraft, loadReinoCatalog, searchParams]);
 
   useEffect(() => {
     if (!initializedRef.current) return;
@@ -326,7 +377,19 @@ export default function AuditoriaWizardClient() {
   }, [acta, context, scopeState, windowStart, windowEnd, objectivesText, team, questionnaire, extensions, step, saveDraft]);
 
   useEffect(() => {
-    if (step !== 2) return;
+    if (scopeState.selectedReinoId) return;
+    if (reinoCatalog.length === 0) return;
+    void applyReinoSelection(reinoCatalog[0].id);
+  }, [reinoCatalog, scopeState.selectedReinoId, applyReinoSelection]);
+
+  useEffect(() => {
+    if (!scopeState.selectedReinoId) return;
+    if (scopeState.domainIds.length > 0) return;
+    void applyReinoSelection(scopeState.selectedReinoId);
+  }, [scopeState.selectedReinoId, scopeState.domainIds.length, applyReinoSelection]);
+
+  useEffect(() => {
+    if (step !== 3) return;
     if (seededTeamRef.current) return;
     if (team.length > 0) {
       seededTeamRef.current = true;
@@ -499,8 +562,8 @@ export default function AuditoriaWizardClient() {
 
   const stepTitle = useMemo(() => {
     if (step === 1) return 'Configuracion: Acta de Inicio';
-    if (step === 2) return 'Equipo';
-    if (step === 3) return 'Analisis de riesgo';
+    if (step === 2) return 'Analisis de riesgo';
+    if (step === 3) return 'Equipo';
     if (step === 4) return 'Seleccion de auditoria';
     if (step === 5) return 'Evaluacion de riesgos';
     if (step === 6) return '';
@@ -527,10 +590,22 @@ export default function AuditoriaWizardClient() {
       {step === 1 && (
         <ActaStep
           acta={acta}
-          context={{ companyId: context.companyId }}
+          context={{
+            companyId: context.companyId,
+            selectedReinoId: scopeState.selectedReinoId || ''
+          }}
           companies={options.companies}
+          reinos={reinoCatalog}
           onChangeActa={setActa}
-          onChangeContext={(next) => setContext((prev) => ({ ...prev, ...next }))}
+          onChangeContext={(next) => {
+            if (Object.prototype.hasOwnProperty.call(next, 'companyId')) {
+              setContext((prev) => ({ ...prev, companyId: next.companyId ?? '' }));
+            }
+            if (Object.prototype.hasOwnProperty.call(next, 'selectedReinoId')) {
+              const nextReino = (next as any).selectedReinoId || '';
+              void applyReinoSelection(nextReino);
+            }
+          }}
           onAI={handleAI}
           aiLoadingFields={aiLoadingFields}
           onSave={handleSave}
@@ -540,6 +615,15 @@ export default function AuditoriaWizardClient() {
       )}
 
       {step === 2 && (
+        <RiskAnalysisStep
+          draftId={draftId}
+          onBack={handleBack}
+          onNext={handleNext}
+          onSave={handleSave}
+        />
+      )}
+
+      {step === 3 && (
         <TeamStep
           team={team}
           teamUsers={companyUsers}
@@ -550,22 +634,18 @@ export default function AuditoriaWizardClient() {
         />
       )}
 
-      {step === 3 && (
-        <RiskAnalysisStep
-          draftId={draftId}
-          onBack={handleBack}
-          onNext={handleNext}
-          onSave={handleSave}
-        />
-      )}
-
       {step === 4 && (
         <ScopeStep
           domainIds={scopeState.domainIds}
+          selectedDomainName={
+            scopeState.selectedReinoId
+              ? `${reinoCatalog.find((d) => d.id === scopeState.selectedReinoId)?.name || 'Reino'} (${scopeState.domainIds.length} dominios)`
+              : null
+          }
           obligationIds={scopeState.obligationIds}
           riskIds={scopeState.riskIds}
           derivedCounts={scopeState.derivedCounts}
-          onChange={setScopeState}
+          onChange={(next) => setScopeState((prev) => ({ ...prev, ...next, selectedReinoId: prev.selectedReinoId }))}
           onBack={handleBack}
           onNext={handleNext}
           onSave={handleSave}

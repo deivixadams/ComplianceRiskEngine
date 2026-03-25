@@ -4,13 +4,14 @@ import {
   Clock,
   Download,
   Info,
+  Layers3,
   Sparkles,
   Users,
   Wand2
 } from 'lucide-react';
 import styles from './ActaStep.module.css';
 
-type Option = { id: string; name: string };
+type Option = { id: string; name: string; code?: string };
 
 type ActaData = {
   entidad_nombre: string;
@@ -29,12 +30,14 @@ type ActaData = {
 
 type ContextState = {
   companyId: string;
+  selectedReinoId: string;
 };
 
 type ActaStepProps = {
   acta: ActaData;
   context: ContextState;
   companies: Option[];
+  reinos: Option[];
   onChangeActa: (next: ActaData) => void;
   onChangeContext: (next: Partial<ContextState>) => void;
   onAI: (field: string, promptCode: string) => void;
@@ -48,6 +51,7 @@ export default function ActaStep({
   acta,
   context,
   companies,
+  reinos,
   onChangeActa,
   onChangeContext,
   onAI,
@@ -77,6 +81,18 @@ export default function ActaStep({
                 <option value="">Seleccione...</option>
                 {companies.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Reino" icon={Layers3}>
+              <select
+                value={context.selectedReinoId}
+                onChange={(e) => onChangeContext({ selectedReinoId: e.target.value })}
+                className={styles.select}
+              >
+                <option value="">Seleccione...</option>
+                {reinos.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}{d.code ? ` (${d.code})` : ''}</option>
                 ))}
               </select>
             </FormField>

@@ -4,8 +4,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Layers3, ShieldCheck, CheckSquare, FilterX } from 'lucide-react';
 import styles from './ScopeStep.module.css';
 
-type Domain = { id: string; name: string; code?: string };
-
 type Obligation = { id: string; title: string; code?: string; domainId?: string };
 
 type Risk = {
@@ -28,6 +26,7 @@ type DerivedCounts = {
 
 type ScopeStepProps = {
   domainIds: string[];
+  selectedDomainName: string | null;
   obligationIds: string[];
   riskIds: string[];
   derivedCounts: DerivedCounts;
@@ -39,23 +38,12 @@ type ScopeStepProps = {
 
 const defaultCounts: DerivedCounts = { obligationCount: 0, riskCount: 0, controlCount: 0, testCount: 0 };
 
-export default function ScopeStep({ domainIds, obligationIds, riskIds, derivedCounts, onChange, onBack, onNext, onSave }: ScopeStepProps) {
-  const [domains, setDomains] = useState<Domain[]>([]);
+export default function ScopeStep({ domainIds, selectedDomainName, obligationIds, riskIds, derivedCounts, onChange, onBack, onNext, onSave }: ScopeStepProps) {
   const [obligations, setObligations] = useState<Obligation[]>([]);
   const [obligationsLoading, setObligationsLoading] = useState(false);
   const [risks, setRisks] = useState<Risk[]>([]);
   const [risksLoading, setRisksLoading] = useState(false);
   const [mode, setMode] = useState<'all' | 'subset'>('all');
-
-  useEffect(() => {
-    const loadDomains = async () => {
-      const res = await fetch('/api/audit/catalog/domains');
-      if (!res.ok) return;
-      const data = await res.json();
-      setDomains(data || []);
-    };
-    loadDomains();
-  }, []);
 
   useEffect(() => {
     if (domainIds.length === 0) {
@@ -150,28 +138,6 @@ export default function ScopeStep({ domainIds, obligationIds, riskIds, derivedCo
     return obligations;
   }, [mode, obligations]);
 
-  const toggleDomain = (id: string) => {
-    const next = domainIds.includes(id)
-      ? domainIds.filter((d) => d !== id)
-      : [...domainIds, id];
-    const allowedRiskIds = next.length
-      ? new Set(
-          risks
-            .filter((risk) => risk.domainIds?.some((domainId) => next.includes(domainId)))
-            .map((risk) => risk.id)
-        )
-      : null;
-    const nextRiskIds = allowedRiskIds
-      ? riskIds.filter((riskId) => allowedRiskIds.has(riskId))
-      : [];
-    onChange({
-      domainIds: next,
-      obligationIds: [],
-      riskIds: nextRiskIds,
-      derivedCounts: derivedCounts ?? defaultCounts
-    });
-  };
-
   const toggleObligation = (id: string) => {
     const next = obligationIds.includes(id)
       ? obligationIds.filter((o) => o !== id)
@@ -215,19 +181,17 @@ export default function ScopeStep({ domainIds, obligationIds, riskIds, derivedCo
       <div className={styles.grid}>
         <div className={styles.card}>
           <div className={styles.cardTitle}>
-            <Layers3 className={styles.cardIcon} /> Dominios
+            <Layers3 className={styles.cardIcon} /> Dominio / Reino
           </div>
-          <div className={styles.scrollList}>
-            {domains.map((domain) => (
-              <label key={domain.id} className={styles.optionRow}>
-                <input
-                  type="checkbox"
-                  checked={domainIds.includes(domain.id)}
-                  onChange={() => toggleDomain(domain.id)}
-                />
-                {domain.name}
-              </label>
-            ))}
+          <div className={styles.fieldStack}>
+            <div className={styles.helperText}>Seleccionado en Paso 1 (Acta)</div>
+            <div className={styles.optionRow}>
+              <input type="checkbox" checked={domainIds.length > 0} disabled />
+              <span>{selectedDomainName || 'Sin reino seleccionado'}</span>
+            </div>
+            <div className={styles.helperText}>
+              El reino se define en Acta; los dominios derivados gobiernan alcance, riesgos, elementos y análisis.
+            </div>
           </div>
         </div>
 
@@ -360,7 +324,6 @@ export default function ScopeStep({ domainIds, obligationIds, riskIds, derivedCo
                     <td className={styles.td}>
                       <div className={styles.riskTitle}>{risk.name}</div>
                       {risk.description && <div className={styles.riskSubtitle}>{risk.description}</div>}
-                      {risk.code && <div className={styles.riskMeta}>{risk.code}</div>}
                     </td>
                     <td className={styles.tdMuted}>{risk.riskTypeName || 'Sin tipo'}</td>
                     <td className={styles.tdMuted}>{risk.status || 'Sin estado'}</td>

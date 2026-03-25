@@ -15,38 +15,102 @@ export async function GET(request: Request) {
       }
     };
 
-    const rdRows = await queryOrEmpty(prisma.$queryRaw<
-      { id: string; name: string; code: string }[]
-    >`
+    const jurisdictionsRaw = await queryOrEmpty(prisma.$queryRaw`
       SELECT id, name, code
       FROM graph.jurisdiction
-      WHERE code = 'DO' OR name ILIKE '%dominicana%'
       ORDER BY name ASC
-      LIMIT 1
     `);
+    const jurisdictions = Array.isArray(jurisdictionsRaw) ? jurisdictionsRaw : [];
 
-    const rd = Array.isArray(rdRows) ? rdRows[0] ?? null : null;
+    const frameworksRaw = await queryOrEmpty(prisma.$queryRaw`
+      SELECT id, code, name, jurisdiction_id
+      FROM "_DONOTUSE_".corpus_framework
+      WHERE COALESCE(status, 'active') = 'active'
+      ORDER BY name ASC
+    `);
+    const frameworks = Array.isArray(frameworksRaw)
+      ? frameworksRaw.map((f: any) => ({
+          id: f.id,
+          code: f.code,
+          name: f.name,
+          jurisdictionId: f.jurisdiction_id,
+        }))
+      : [];
+
+    const frameworkVersionsRaw = await queryOrEmpty(prisma.$queryRaw`
+      SELECT
+        fv.id,
+        fv.framework_id,
+        fv.version,
+        fv.effective_date,
+        fv.created_at
+      FROM corpus.framework_version fv
+      WHERE COALESCE(fv.status, 'active') = 'active'
+      ORDER BY COALESCE(fv.effective_date, fv.created_at::date) DESC, fv.created_at DESC
+    `);
+    const frameworkVersions = Array.isArray(frameworkVersionsRaw)
+      ? frameworkVersionsRaw.map((v: any) => ({
+          id: v.id,
+          version: v.version,
+          frameworkId: v.framework_id,
+          effectiveDate: v.effective_date,
+        }))
+      : [];
 
     if (companyId) {
-      const sources = await queryOrEmpty(prisma.$queryRaw<
-        { id: string; citation: string | null; framework_version_id: string | null }[]
-      >`
-        SELECT id, citation, framework_version_id
-        FROM corpus.framework_source
-        ORDER BY created_at DESC NULLS LAST, id DESC
+      const generalJurisdictionRows = await queryOrEmpty(prisma.$queryRaw`
+        SELECT id
+        FROM graph.jurisdiction
+        WHERE code = 'GEN'
+        LIMIT 1
+      `);
+      const generalJurisdiction = Array.isArray(generalJurisdictionRows) ? generalJurisdictionRows[0] ?? null : null;
+
+      const companyRows = await queryOrEmpty(prisma.$queryRaw`
+        SELECT id, jurisdiction_id
+        FROM corpus.company
+        WHERE id = ${companyId}::uuid
+        LIMIT 1
+      `);
+      const company = Array.isArray(companyRows) ? companyRows[0] ?? null : null;
+      if (!company) {
+        return NextResponse.json({ found: false });
+      }
+
+      const companyFrameworkRows = await queryOrEmpty(prisma.$queryRaw`
+        SELECT
+          fv.id AS framework_version_id,
+          fv.framework_id
+        FROM corpus.framework_version fv
+        JOIN "_DONOTUSE_".corpus_framework f
+          ON f.id = fv.framework_id
+        WHERE COALESCE(fv.status, 'active') = 'active'
+          AND COALESCE(f.status, 'active') = 'active'
+          AND (
+            ${company.jurisdiction_id}::uuid IS NULL
+            OR f.jurisdiction_id = ${company.jurisdiction_id}::uuid
+            OR (
+              ${generalJurisdiction?.id ?? null}::uuid IS NOT NULL
+              AND f.jurisdiction_id = ${generalJurisdiction?.id ?? null}::uuid
+            )
+          )
+        ORDER BY COALESCE(fv.effective_date, fv.created_at::date) DESC, fv.created_at DESC
         LIMIT 1
       `);
 
-      const source = Array.isArray(sources) ? sources[0] ?? null : null;
-      if (!source) {
-        return NextResponse.json({ found: false });
+      const companyFramework = Array.isArray(companyFrameworkRows) ? companyFrameworkRows[0] ?? null : null;
+      if (!companyFramework) {
+        return NextResponse.json({
+          found: false,
+          jurisdictionId: company.jurisdiction_id ?? null,
+        });
       }
 
       return NextResponse.json({
         found: true,
-        jurisdictionId: rd?.id ?? null,
-        frameworkSourceId: source.id,
-        frameworkVersionId: source.framework_version_id ?? null,
+        jurisdictionId: company.jurisdiction_id ?? null,
+        frameworkVersionId: companyFramework.framework_version_id ?? null,
+        frameworkId: companyFramework.framework_id ?? null,
       });
     }
 
@@ -55,32 +119,12 @@ export async function GET(request: Request) {
       FROM corpus.company
       ORDER BY name ASC
     `) as any[];
-    const jurisdictions = rd ? [rd] : [];
-    const frameworks: any[] = [];
-    const frameworkSourcesRaw = await queryOrEmpty(prisma.$queryRaw`
-      SELECT id, citation, framework_version_id
-      FROM corpus.framework_source
-      ORDER BY created_at DESC NULLS LAST, id DESC
-    `);
-    const frameworkSources = (frameworkSourcesRaw as any[]).map((v) => ({
-      id: v.id,
-      citation: v.citation,
-      frameworkVersionId: v.framework_version_id,
-      frameworkId: null,
-    }));
-
-    const frameworkVersionsRaw: any[] = [];
-    const frameworkVersions = (frameworkVersionsRaw as any[]).map((v) => ({
-      id: v.id,
-      version: v.version,
-      frameworkId: v.framework_id,
-    }));
 
     return NextResponse.json({
       companies,
       jurisdictions,
       frameworks,
-      frameworkSources,
+      frameworkSources: [],
       frameworkVersions,
     });
   } catch (error: any) {

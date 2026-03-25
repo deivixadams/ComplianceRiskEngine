@@ -26,6 +26,12 @@ type RiskAnalysisRow = {
   baseScore: number | null;
   riskScore: number | null;
   deltaScore: number | null;
+  mitigatingControlId: string | null;
+  mitigatingControlCode: string | null;
+  mitigatingControlName: string | null;
+  mitigatingControlDescription: string | null;
+  mitigationStrength: number | null;
+  mitigationLevel: string | null;
   scenario: string | null;
   source: string | null;
   analysisNotes: string | null;
@@ -49,6 +55,13 @@ type SelectOption = {
   name: string;
 };
 
+type RiskControlLink = {
+  riskId: string;
+  controlId: string;
+  mitigationStrength: number | null;
+  effectType: string | null;
+};
+
 type SystemPair = {
   domainId: string;
   riskId: string;
@@ -61,6 +74,12 @@ type SystemPair = {
   baseScore: number | null;
   riskScore: number | null;
   deltaScore: number | null;
+  mitigatingControlId: string | null;
+  mitigatingControlCode: string | null;
+  mitigatingControlName: string | null;
+  mitigatingControlDescription: string | null;
+  mitigationStrength: number | null;
+  mitigationLevel: string | null;
   hasRealData: boolean;
   isMissingRequiredData: boolean;
 };
@@ -71,6 +90,7 @@ type SaveRow = {
   riskId: string;
   elementId?: string | null;
   customElementName?: string | null;
+  mitigatingControlId?: string | null;
   probability?: number | null;
   impact?: number | null;
   connectivity?: number | null;
@@ -86,6 +106,7 @@ type ComposerState = {
   elementId: string;
   riskId: string;
   customElementName: string;
+  mitigatingControlId: string;
   probability: number | null;
   impact: number | null;
   connectivity: number | null;
@@ -106,9 +127,20 @@ const round4 = (value: number) => Math.round(value * 10000) / 10000;
 const round6 = (value: number) => Math.round(value * 1_000_000) / 1_000_000;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-const computeRiskScore = (row: Pick<RiskAnalysisRow, 'probability' | 'impact' | 'cascade' | 'kFactor'>) => {
-  if (row.probability == null || row.impact == null || row.cascade == null) return null;
-  return round6((row.probability * row.impact) * (1 + (row.kFactor * row.cascade)));
+const computeInherentRisk = (probability: number | null, impact: number | null) => {
+  if (probability == null || impact == null) return null;
+  return round6(probability * impact);
+};
+
+const computeResidualRisk = (
+  probability: number | null,
+  impact: number | null,
+  mitigationStrength: number | null | undefined
+) => {
+  const inherent = computeInherentRisk(probability, impact);
+  if (inherent == null) return null;
+  const strength = mitigationStrength && mitigationStrength > 0 ? mitigationStrength : 1;
+  return round6(inherent / strength);
 };
 
 const createSystemComposer = (): ComposerState => ({
@@ -116,6 +148,7 @@ const createSystemComposer = (): ComposerState => ({
   elementId: '',
   riskId: '',
   customElementName: '',
+  mitigatingControlId: '',
   probability: null,
   impact: null,
   connectivity: null,
@@ -130,6 +163,7 @@ const createCustomComposer = (riskId = '', probability: number | null = null, im
   elementId: '',
   riskId,
   customElementName: '',
+  mitigatingControlId: '',
   probability,
   impact,
   connectivity: 1,
@@ -146,6 +180,7 @@ const toSavePayload = (rows: RiskAnalysisRow[]): SaveRow[] =>
     riskId: row.riskId,
     elementId: row.elementId,
     customElementName: row.customElementName ?? null,
+    mitigatingControlId: row.mitigatingControlId ?? null,
     probability: row.probability,
     impact: row.impact,
     connectivity: row.connectivity,
@@ -159,9 +194,7 @@ const toSavePayload = (rows: RiskAnalysisRow[]): SaveRow[] =>
 function hasCompleteData(row: RiskAnalysisRow): boolean {
   const hasNumbers =
     row.probability !== null &&
-    row.impact !== null &&
-    row.connectivity !== null &&
-    row.cascade !== null;
+    row.impact !== null;
 
   if (row.rowMode === 'SYSTEM') {
     return Boolean(row.elementId) && Boolean(row.riskId) && hasNumbers;
@@ -185,6 +218,8 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
   const [impactCatalog, setImpactCatalog] = useState<RiskCatalogOption[]>([]);
   const [elementOptions, setElementOptions] = useState<SelectOption[]>([]);
   const [riskOptions, setRiskOptions] = useState<SelectOption[]>([]);
+  const [controlOptions, setControlOptions] = useState<SelectOption[]>([]);
+  const [riskControlLinks, setRiskControlLinks] = useState<RiskControlLink[]>([]);
   const [systemPairs, setSystemPairs] = useState<SystemPair[]>([]);
   const [composer, setComposer] = useState<ComposerState>(createSystemComposer);
   const [loading, setLoading] = useState(true);
@@ -217,6 +252,16 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
     return pairsByElement.get(composer.elementId) ?? [];
   }, [composer.mode, composer.elementId, pairsByElement]);
 
+  const controlsByRisk = useMemo(() => {
+    const map = new Map<string, string[]>();
+    riskControlLinks.forEach((link) => {
+      const current = map.get(link.riskId) ?? [];
+      if (!current.includes(link.controlId)) current.push(link.controlId);
+      map.set(link.riskId, current);
+    });
+    return map;
+  }, [riskControlLinks]);
+
   const elementMap = useMemo(() => {
     const map = new Map<string, SelectOption>();
     elementOptions.forEach((element) => map.set(element.id, element));
@@ -229,15 +274,53 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
     return map;
   }, [riskOptions]);
 
-  const composerRiskScore = useMemo(() => {
-    const value = computeRiskScore({
-      probability: composer.probability,
-      impact: composer.impact,
-      cascade: composer.cascade,
-      kFactor: composer.kFactor
+  const controlMap = useMemo(() => {
+    const map = new Map<string, SelectOption>();
+    controlOptions.forEach((control) => map.set(control.id, control));
+    return map;
+  }, [controlOptions]);
+
+  const riskControlStrengthMap = useMemo(() => {
+    const map = new Map<string, number>();
+    riskControlLinks.forEach((link) => {
+      map.set(`${link.riskId}::${link.controlId}`, link.mitigationStrength == null ? 1 : Math.max(1, Math.round(link.mitigationStrength)));
     });
-    return value;
-  }, [composer]);
+    return map;
+  }, [riskControlLinks]);
+
+  const composerControlOptions = useMemo(() => {
+    if (!composer.riskId) return controlOptions;
+    const scopedControlIds = controlsByRisk.get(composer.riskId) ?? [];
+    if (scopedControlIds.length === 0) return controlOptions;
+    return scopedControlIds
+      .map((controlId) => controlMap.get(controlId))
+      .filter((opt): opt is SelectOption => Boolean(opt));
+  }, [composer.riskId, controlsByRisk, controlMap, controlOptions]);
+
+  const getControlOptionsForRisk = useCallback((riskId: string) => {
+    const scopedControlIds = controlsByRisk.get(riskId) ?? [];
+    if (scopedControlIds.length === 0) return controlOptions;
+    return scopedControlIds
+      .map((controlId) => controlMap.get(controlId))
+      .filter((opt): opt is SelectOption => Boolean(opt));
+  }, [controlsByRisk, controlMap, controlOptions]);
+
+  const composerInherentRisk = useMemo(
+    () => computeInherentRisk(composer.probability, composer.impact),
+    [composer.probability, composer.impact]
+  );
+
+  const composerMitigationStrength = useMemo(() => {
+    if (!composer.riskId) return null;
+    const selectedControlId = composer.mitigatingControlId || '';
+    if (!selectedControlId) return null;
+    return riskControlStrengthMap.get(`${composer.riskId}::${selectedControlId}`) ?? 1;
+  }, [composer.riskId, composer.mitigatingControlId, riskControlStrengthMap]);
+
+  const composerResidualRisk = useMemo(
+    () => computeResidualRisk(composer.probability, composer.impact, composerMitigationStrength),
+    [composer.probability, composer.impact, composerMitigationStrength]
+  );
 
   const loadRows = useCallback(async () => {
     if (!draftId) {
@@ -247,6 +330,8 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
       setImpactCatalog([]);
       setElementOptions([]);
       setRiskOptions([]);
+      setControlOptions([]);
+      setRiskControlLinks([]);
       setSystemPairs([]);
       setComposer(createSystemComposer());
       setLoading(false);
@@ -265,6 +350,8 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
       setImpactCatalog(Array.isArray(data?.impactCatalog) ? data.impactCatalog : []);
       setElementOptions(Array.isArray(data?.elementOptions) ? data.elementOptions : []);
       setRiskOptions(Array.isArray(data?.riskOptions) ? data.riskOptions : []);
+      setControlOptions(Array.isArray(data?.controlOptions) ? data.controlOptions : []);
+      setRiskControlLinks(Array.isArray(data?.riskControlLinks) ? data.riskControlLinks : []);
       setSystemPairs(Array.isArray(data?.systemPairs) ? data.systemPairs : []);
       setRows(Array.isArray(data?.rows) ? data.rows : []);
 
@@ -277,6 +364,8 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
       setImpactCatalog([]);
       setElementOptions([]);
       setRiskOptions([]);
+      setControlOptions([]);
+      setRiskControlLinks([]);
       setSystemPairs([]);
       setComposer(createSystemComposer());
     } finally {
@@ -318,6 +407,7 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
       mode: 'SYSTEM',
       elementId: pair.elementId,
       riskId: pair.riskId,
+      mitigatingControlId: pair.mitigatingControlId || '',
       probability: pair.probability,
       impact: pair.impact,
       connectivity: pair.connectivity,
@@ -335,7 +425,7 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
     }
     const pairs = sortPairsByRiskScore(pairsByElement.get(elementId) ?? []);
     if (pairs.length === 0) {
-      setComposer((prev) => ({ ...prev, mode: 'SYSTEM', elementId, riskId: '', probability: null, impact: null, connectivity: null, cascade: null, kFactor: 1 }));
+      setComposer((prev) => ({ ...prev, mode: 'SYSTEM', elementId, riskId: '', mitigatingControlId: '', probability: null, impact: null, connectivity: null, cascade: null, kFactor: 1 }));
       return;
     }
     applyPairToComposer(pairs[0]);
@@ -344,19 +434,20 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
   const handleComposerRiskChange = useCallback((riskId: string) => {
     if (composer.mode !== 'SYSTEM') {
       if (!riskId) {
-        setComposer((prev) => ({ ...prev, riskId: '' }));
+        setComposer((prev) => ({ ...prev, riskId: '', mitigatingControlId: '' }));
         return;
       }
 
       const seededPair = sortPairsByRiskScore(systemPairs.filter((pair) => pair.riskId === riskId))[0];
       if (!seededPair) {
-        setComposer((prev) => ({ ...prev, riskId }));
+        setComposer((prev) => ({ ...prev, riskId, mitigatingControlId: '' }));
         return;
       }
 
       setComposer((prev) => ({
         ...prev,
         riskId,
+        mitigatingControlId: seededPair.mitigatingControlId || '',
         probability: seededPair.probability,
         impact: seededPair.impact,
         connectivity: seededPair.connectivity,
@@ -366,16 +457,20 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
       return;
     }
     if (!composer.elementId || !riskId) {
-      setComposer((prev) => ({ ...prev, riskId }));
+      setComposer((prev) => ({ ...prev, riskId, mitigatingControlId: '' }));
       return;
     }
     const pair = pairMap.get(`${riskId}::${composer.elementId}`);
     if (!pair) {
-      setComposer((prev) => ({ ...prev, riskId, probability: null, impact: null, connectivity: null, cascade: null, kFactor: 1 }));
+      setComposer((prev) => ({ ...prev, riskId, mitigatingControlId: '', probability: null, impact: null, connectivity: null, cascade: null, kFactor: 1 }));
       return;
     }
     applyPairToComposer(pair);
   }, [applyPairToComposer, composer.elementId, composer.mode, pairMap, systemPairs]);
+
+  const handleComposerControlChange = useCallback((controlId: string) => {
+    setComposer((prev) => ({ ...prev, mitigatingControlId: controlId }));
+  }, []);
 
   const handleComposerNumericChange = (field: 'probability' | 'impact' | 'connectivity' | 'cascade', rawValue: string) => {
     const num = Number(rawValue);
@@ -408,17 +503,15 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
         const connectivity = next.connectivity == null ? null : clamp(Math.round(Number(next.connectivity) || 1), 1, 5);
         const cascade = next.cascade == null ? null : round4(clamp(Number(next.cascade) || 0, 0, 1));
         const kFactor = round4(Math.max(0, Number(next.kFactor) || 1));
+        const controlId = next.mitigatingControlId || null;
+        const controlMeta = controlId ? controlMap.get(controlId) : null;
+        const mitigationStrength = controlId ? (riskControlStrengthMap.get(`${next.riskId}::${controlId}`) ?? 1) : null;
+        const mitigationLevel = mitigationStrength == null ? null : (mitigationStrength >= 4 ? 'TOTAL' : 'PARCIAL');
 
-        let baseScore: number | null = null;
-        let riskScore: number | null = null;
-        let deltaScore: number | null = null;
-        if (probability !== null && impact !== null && cascade !== null) {
-          baseScore = round6(probability * impact);
-          riskScore = computeRiskScore({ probability, impact, cascade, kFactor });
-          deltaScore = riskScore == null ? null : round6(riskScore - baseScore);
-        }
-
-        const hasRealData = Boolean(probability !== null && impact !== null && connectivity !== null && cascade !== null);
+        const baseScore = computeInherentRisk(probability, impact);
+        const riskScore = computeResidualRisk(probability, impact, mitigationStrength);
+        const deltaScore = baseScore == null || riskScore == null ? null : round6(baseScore - riskScore);
+        const hasRealData = Boolean(probability !== null && impact !== null);
 
         return {
           ...next,
@@ -430,6 +523,11 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
           baseScore,
           riskScore,
           deltaScore,
+          mitigatingControlId: controlId,
+          mitigatingControlCode: controlMeta?.code ?? null,
+          mitigatingControlName: controlMeta?.name ?? null,
+          mitigationStrength,
+          mitigationLevel,
           hasRealData,
           isMissingRequiredData: !hasCompleteData({ ...next, probability, impact, connectivity, cascade, kFactor, baseScore, riskScore, deltaScore, hasRealData })
         };
@@ -445,7 +543,8 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
     const defaultProbability = probabilityCatalog[0]?.baseValue ?? null;
     const defaultImpact = impactCatalog[0]?.baseValue ?? null;
     const defaultRisk = riskOptions[0]?.id ?? '';
-    setComposer(createCustomComposer(defaultRisk, defaultProbability, defaultImpact));
+    const defaultControlId = defaultRisk ? (getControlOptionsForRisk(defaultRisk)[0]?.id ?? '') : '';
+    setComposer({ ...createCustomComposer(defaultRisk, defaultProbability, defaultImpact), mitigatingControlId: defaultControlId });
     setError(null);
   };
 
@@ -465,8 +564,8 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
         setError('Selecciona un elemento y su riesgo asociado antes de agregar.');
         return;
       }
-      if (composer.probability == null || composer.impact == null || composer.connectivity == null || composer.cascade == null) {
-        setError('Completa Probabilidad, Impacto, Conectividad y Cascada antes de agregar.');
+      if (composer.probability == null || composer.impact == null) {
+        setError('Completa Probabilidad e Impacto antes de agregar.');
         return;
       }
       if (rows.some((row) => row.rowMode === 'SYSTEM' && row.elementId === elementId && row.riskId === riskId)) {
@@ -476,9 +575,15 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
 
       const element = elementMap.get(elementId);
       const risk = riskMap.get(riskId);
-      const baseScore = round6(composer.probability * composer.impact);
-      const riskScore = composerRiskScore;
-      const deltaScore = riskScore == null ? null : round6(riskScore - baseScore);
+      const selectedControlId = composer.mitigatingControlId
+        || pairMap.get(`${riskId}::${elementId}`)?.mitigatingControlId
+        || getControlOptionsForRisk(riskId)[0]?.id
+        || '';
+      const selectedControlMeta = selectedControlId ? controlMap.get(selectedControlId) : null;
+      const selectedStrength = selectedControlId ? (riskControlStrengthMap.get(`${riskId}::${selectedControlId}`) ?? 1) : null;
+      const baseScore = computeInherentRisk(composer.probability, composer.impact);
+      const riskScore = computeResidualRisk(composer.probability, composer.impact, selectedStrength);
+      const deltaScore = baseScore == null || riskScore == null ? null : round6(baseScore - riskScore);
 
       const newRow: RiskAnalysisRow = {
         rowId: `system:${riskId}:${elementId}:${crypto.randomUUID()}`,
@@ -500,6 +605,12 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
         baseScore,
         riskScore,
         deltaScore,
+        mitigatingControlId: selectedControlId || null,
+        mitigatingControlCode: selectedControlMeta?.code ?? null,
+        mitigatingControlName: selectedControlMeta?.name ?? null,
+        mitigatingControlDescription: null,
+        mitigationStrength: selectedStrength,
+        mitigationLevel: selectedStrength == null ? null : (selectedStrength >= 4 ? 'TOTAL' : 'PARCIAL'),
         scenario: composer.scenario,
         source: composer.source,
         analysisNotes: null,
@@ -518,8 +629,8 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
       setError('Para modo nuevo debes definir elemento y riesgo.');
       return;
     }
-    if (composer.probability == null || composer.impact == null || composer.connectivity == null || composer.cascade == null) {
-      setError('Completa Probabilidad, Impacto, Conectividad y Cascada antes de agregar.');
+    if (composer.probability == null || composer.impact == null) {
+      setError('Completa Probabilidad e Impacto antes de agregar.');
       return;
     }
     if (rows.some((row) => row.rowMode === 'CUSTOM' && (row.customElementName || '').trim().toLowerCase() === customElementName.toLowerCase() && row.riskId === composer.riskId)) {
@@ -528,9 +639,12 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
     }
 
     const risk = riskMap.get(composer.riskId);
-    const baseScore = round6(composer.probability * composer.impact);
-    const riskScore = composerRiskScore;
-    const deltaScore = riskScore == null ? null : round6(riskScore - baseScore);
+    const selectedControlId = composer.mitigatingControlId || getControlOptionsForRisk(composer.riskId)[0]?.id || '';
+    const selectedControlMeta = selectedControlId ? controlMap.get(selectedControlId) : null;
+    const selectedStrength = selectedControlId ? (riskControlStrengthMap.get(`${composer.riskId}::${selectedControlId}`) ?? 1) : null;
+    const baseScore = computeInherentRisk(composer.probability, composer.impact);
+    const riskScore = computeResidualRisk(composer.probability, composer.impact, selectedStrength);
+    const deltaScore = baseScore == null || riskScore == null ? null : round6(baseScore - riskScore);
 
     const newRow: RiskAnalysisRow = {
       rowId: `custom:${crypto.randomUUID()}`,
@@ -552,6 +666,12 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
       baseScore,
       riskScore,
       deltaScore,
+      mitigatingControlId: selectedControlId || null,
+      mitigatingControlCode: selectedControlMeta?.code ?? null,
+      mitigatingControlName: selectedControlMeta?.name ?? null,
+      mitigatingControlDescription: null,
+      mitigationStrength: selectedStrength,
+      mitigationLevel: selectedStrength == null ? null : (selectedStrength >= 4 ? 'TOTAL' : 'PARCIAL'),
       scenario: composer.scenario,
       source: composer.source,
       analysisNotes: null,
@@ -577,6 +697,15 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
       return elA.localeCompare(elB);
     });
   }, [rows]);
+
+  const totals = useMemo(() => {
+    const inherent = sortedRows.reduce((acc, row) => acc + (row.baseScore ?? 0), 0);
+    const residual = sortedRows.reduce((acc, row) => acc + (row.riskScore ?? 0), 0);
+    return {
+      inherent: round6(inherent),
+      residual: round6(residual)
+    };
+  }, [sortedRows]);
 
   const handleSaveClick = async () => {
     const ok = await persist();
@@ -621,7 +750,8 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
 
       <div className={styles.composerCard}>
         <div className={styles.composerGrid}>
-          <div className={styles.composerCellWide}>
+          <div className={`${styles.composerField} ${styles.composerCellWide}`}>
+            <span className={styles.composerFieldLabel}>Elemento</span>
             {composer.mode === 'SYSTEM' ? (
               <select
                 value={composer.elementId}
@@ -644,7 +774,8 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
             )}
           </div>
 
-          <div className={styles.composerCellWide}>
+          <div className={`${styles.composerField} ${styles.composerCellWide}`}>
+            <span className={styles.composerFieldLabel}>Riesgo</span>
             {composer.mode === 'SYSTEM' ? (
               selectedElementPairs.length <= 1 ? (
                 <div className={styles.riskReadonly}>{riskMap.get(composer.riskId)?.name || 'Sin riesgo asociado'}</div>
@@ -673,7 +804,8 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
             )}
           </div>
 
-          <div className={styles.composerCell}>
+          <div className={`${styles.composerField} ${styles.composerCell}`}>
+            <span className={styles.composerFieldLabel}>Probabilidad</span>
             <select
               value={composer.probability ?? ''}
               onChange={(event) => handleComposerNumericChange('probability', event.target.value)}
@@ -686,7 +818,8 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
             </select>
           </div>
 
-          <div className={styles.composerCell}>
+          <div className={`${styles.composerField} ${styles.composerCell}`}>
+            <span className={styles.composerFieldLabel}>Impacto</span>
             <select
               value={composer.impact ?? ''}
               onChange={(event) => handleComposerNumericChange('impact', event.target.value)}
@@ -699,32 +832,34 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
             </select>
           </div>
 
-          <div className={styles.composerCell}>
-            <input
-              type="number"
-              step="1"
-              min={1}
-              max={5}
-              value={composer.connectivity ?? ''}
-              onChange={(event) => handleComposerNumericChange('connectivity', event.target.value)}
-              className={styles.numberInput}
-            />
+          <div className={`${styles.composerField} ${styles.composerCell}`}>
+            <span className={styles.composerFieldLabel}>Riesgo inherente</span>
+            <div className={styles.composerScore}>
+              {composerInherentRisk == null ? '--' : composerInherentRisk.toFixed(4)}
+            </div>
           </div>
 
-          <div className={styles.composerCell}>
-            <input
-              type="number"
-              step="0.01"
-              min={0}
-              max={1}
-              value={composer.cascade ?? ''}
-              onChange={(event) => handleComposerNumericChange('cascade', event.target.value)}
-              className={styles.numberInput}
-            />
+          <div className={`${styles.composerField} ${styles.composerCell}`}>
+            <span className={styles.composerFieldLabel}>Control mitigante</span>
+            <select
+              value={composer.mitigatingControlId}
+              onChange={(event) => handleComposerControlChange(event.target.value)}
+              className={`${styles.selectInput} ${styles.controlSelectInput}`}
+            >
+              <option value="">Seleccione control...</option>
+              {composerControlOptions.map((control) => (
+                <option key={control.id} value={control.id}>
+                  {control.name}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div className={styles.composerScore}>
-            {composerRiskScore == null ? '--' : composerRiskScore.toFixed(4)}
+          <div className={`${styles.composerField} ${styles.composerCell}`}>
+            <span className={styles.composerFieldLabel}>Riesgo residual</span>
+            <div className={styles.composerScore}>
+              {composerResidualRisk == null ? '--' : composerResidualRisk.toFixed(4)}
+            </div>
           </div>
         </div>
 
@@ -751,9 +886,9 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
               <th>Riesgo</th>
               <th>Probabilidad</th>
               <th>Impacto</th>
-              <th>Conectividad</th>
-              <th>Cascada</th>
-              <th>Risk Score</th>
+              <th>Riesgo inherente</th>
+              <th>Control mitigante</th>
+              <th>Riesgo residual</th>
               <th>Accion</th>
             </tr>
           </thead>
@@ -811,26 +946,22 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
                     </select>
                   </td>
                   <td>
-                    <input
-                      type="number"
-                      step="1"
-                      min={1}
-                      max={5}
-                      value={row.connectivity ?? ''}
-                      onChange={(event) => updateRow(row.rowId, { connectivity: Number(event.target.value) })}
-                      className={styles.numberInput}
-                    />
+                    <span className={styles.scoreCell}>{row.baseScore == null ? '--' : row.baseScore.toFixed(4)}</span>
                   </td>
                   <td>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      max={1}
-                      value={row.cascade ?? ''}
-                      onChange={(event) => updateRow(row.rowId, { cascade: Number(event.target.value) })}
-                      className={styles.numberInput}
-                    />
+                    <select
+                      value={row.mitigatingControlId ?? ''}
+                      onChange={(event) => updateRow(row.rowId, { mitigatingControlId: event.target.value || null })}
+                      className={`${styles.selectInput} ${styles.controlSelectInput}`}
+                    >
+                      <option value="">Seleccione control...</option>
+                      {getControlOptionsForRisk(row.riskId)
+                        .map((control) => (
+                          <option key={`${row.rowId}-${control.id}`} value={control.id}>
+                            {control.name}
+                          </option>
+                        ))}
+                    </select>
                   </td>
                   <td>
                     <span className={styles.scoreCell}>{row.riskScore == null ? '--' : row.riskScore.toFixed(4)}</span>
@@ -844,6 +975,17 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
               );
             })}
           </tbody>
+          {sortedRows.length > 0 && (
+            <tfoot>
+              <tr className={styles.totalRow}>
+                <td colSpan={4} className={styles.totalLabel}>Totales</td>
+                <td className={styles.totalValue}>{totals.inherent.toFixed(4)}</td>
+                <td className={styles.totalSpacer}>-</td>
+                <td className={styles.totalValue}>{totals.residual.toFixed(4)}</td>
+                <td className={styles.totalSpacer}>-</td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 

@@ -39,6 +39,12 @@ type RiskAnalysisRow = {
   baseScore: number | null;
   riskScore: number | null;
   deltaScore: number | null;
+  mitigatingControlId: string | null;
+  mitigatingControlCode: string | null;
+  mitigatingControlName: string | null;
+  mitigatingControlDescription: string | null;
+  mitigationStrength: number | null;
+  mitigationLevel: string | null;
   scenario: string | null;
   source: string | null;
   analysisNotes: string | null;
@@ -73,6 +79,12 @@ type BaselineRow = {
   base_score: Prisma.Decimal | number | null;
   risk_score: Prisma.Decimal | number | null;
   delta_score: Prisma.Decimal | number | null;
+  mitigating_control_id: string | null;
+  mitigating_control_code: string | null;
+  mitigating_control_name: string | null;
+  mitigating_control_description: string | null;
+  mitigation_strength: number | null;
+  mitigation_level: string | null;
   scenario: string | null;
   source: string | null;
   analysis_notes: string | null;
@@ -96,6 +108,9 @@ type DraftSavedRow = {
   element_id: string | null;
   custom_element_name: string | null;
   row_mode: string;
+  mitigating_control_id: string | null;
+  mitigation_strength: number | null;
+  mitigation_level: string | null;
   probability: Prisma.Decimal | number | null;
   impact: Prisma.Decimal | number | null;
   connectivity: number | null;
@@ -122,6 +137,7 @@ type PutBodyRow = {
   riskId: string;
   elementId?: string | null;
   customElementName?: string | null;
+  mitigatingControlId?: string | null;
   probability?: number | null;
   impact?: number | null;
   connectivity?: number | null;
@@ -136,6 +152,13 @@ type PutBody = {
   rows?: PutBodyRow[];
 };
 
+type RiskControlLinkRow = {
+  risk_id: string;
+  control_id: string;
+  mitigation_strength: number | null;
+  effect_type: string | null;
+};
+
 const toNumber = (value: Prisma.Decimal | number | string | null | undefined, fallback = 0) => {
   if (value === null || value === undefined) return fallback;
   const n = Number(value);
@@ -147,10 +170,22 @@ const round6 = (value: number) => Math.round(value * 1_000_000) / 1_000_000;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 function computeScores(probability: number, impact: number, cascade: number, kFactor: number) {
+  const _unusedCascade = cascade;
+  const _unusedKFactor = kFactor;
+  void _unusedCascade;
+  void _unusedKFactor;
   const baseScore = round6(probability * impact);
-  const riskScore = round6((probability * impact) * (1 + (kFactor * cascade)));
-  const deltaScore = round6(riskScore - baseScore);
+  const riskScore = round6(baseScore);
+  const deltaScore = 0;
   return { baseScore, riskScore, deltaScore };
+}
+
+function computeMitigatedScores(probability: number, impact: number, mitigationStrength: number | null | undefined) {
+  const inherent = round6(probability * impact);
+  const strength = mitigationStrength && mitigationStrength > 0 ? mitigationStrength : 1;
+  const residual = round6(inherent / strength);
+  const reduction = round6(inherent - residual);
+  return { inherent, residual, reduction };
 }
 
 function extractScopeSelection(draft: DraftRecord | null): ScopeSelection {
@@ -277,6 +312,12 @@ export async function GET(
             va.base_score,
             va.risk_score,
             va.delta_score,
+            va.mitigating_control_id,
+            va.mitigating_control_code,
+            va.mitigating_control_name,
+            COALESCE(mc.description, va.mitigating_rationale, va.mitigating_coverage_notes) AS mitigating_control_description,
+            va.mitigation_strength,
+            va.mitigation_level,
             va.scenario,
             va.source,
             va.analysis_notes,
@@ -291,6 +332,8 @@ export async function GET(
                 : Prisma.sql`NOT (va.probability IS NOT NULL AND va.impact IS NOT NULL AND va.connectivity IS NOT NULL AND va.cascade IS NOT NULL) AS is_missing_required_data`
             }
           FROM graph.v_risk_analyst va
+          LEFT JOIN graph.control mc
+            ON mc.id = va.mitigating_control_id
           WHERE va.domain_id = ANY(${selectedDomainIds}::uuid[])
           ORDER BY va.element_name ASC, va.risk_name ASC
         `)
@@ -331,6 +374,19 @@ export async function GET(
                 THEN (((ra.probability * ra.impact) * (1 + (COALESCE(ra.k_factor, 1) * ra.cascade))) - (ra.probability * ra.impact))::numeric(18,6)
               ELSE NULL
             END AS delta_score,
+            COALESCE(ra.mitigating_control_id, mrc_best.control_id) AS mitigating_control_id,
+            mrc_best.control_code AS mitigating_control_code,
+            mrc_best.control_name AS mitigating_control_name,
+            mrc_best.control_description AS mitigating_control_description,
+            COALESCE(ra.mitigation_strength, mrc_best.mitigation_strength) AS mitigation_strength,
+            COALESCE(
+              upper(ra.mitigation_level),
+              CASE
+                WHEN COALESCE(ra.mitigation_strength, mrc_best.mitigation_strength) IS NULL THEN NULL
+                WHEN COALESCE(ra.mitigation_strength, mrc_best.mitigation_strength) >= 4 THEN 'TOTAL'
+                ELSE 'PARCIAL'
+              END
+            ) AS mitigation_level,
             ra.scenario,
             ra.source,
             ra.analysis_notes,
@@ -346,10 +402,32 @@ export async function GET(
           LEFT JOIN graph.risk_analyst ra
             ON ra.risk_id = bp.risk_id
            AND ra.element_id = bp.element_id
+          LEFT JOIN LATERAL (
+            SELECT
+              mrc.control_id,
+              c.code AS control_code,
+              c.name AS control_name,
+              c.description AS control_description,
+              mrc.mitigation_strength
+            FROM graph.map_risk_control mrc
+            JOIN graph.control c
+              ON c.id = mrc.control_id
+            WHERE mrc.risk_id = bp.risk_id
+            ORDER BY
+              mrc.mitigation_strength DESC,
+              CASE lower(mrc.effect_type)
+                WHEN 'preventive' THEN 1
+                WHEN 'detective' THEN 2
+                WHEN 'corrective' THEN 3
+                ELSE 9
+              END,
+              c.code
+            LIMIT 1
+          ) mrc_best ON true
           ORDER BY element_name ASC, risk_name ASC
         `);
 
-    const [probabilityRows, impactRows, elementOptions] = await Promise.all([
+    const [probabilityRows, impactRows, elementOptions, controlOptions, riskControlLinksRaw] = await Promise.all([
       prisma.$queryRaw(Prisma.sql`
         SELECT id, code, name, description, base_value, sort_order
         FROM catalogos.corpus_catalog_probability
@@ -373,6 +451,44 @@ export async function GET(
         WHERE mde.domain_id = ANY(${selectedDomainIds}::uuid[])
           AND de.element_type = 'OBLIGATION'
         ORDER BY name ASC
+      `),
+      prisma.$queryRaw(Prisma.sql`
+        WITH domain_risks AS (
+          SELECT DISTINCT mer.risk_id
+          FROM graph.map_domain_elements_risk mer
+          JOIN graph.map_domain_element mde
+            ON mde.element_id = mer.element_id
+          WHERE mde.domain_id = ANY(${selectedDomainIds}::uuid[])
+        )
+        SELECT DISTINCT
+          c.id,
+          c.code,
+          c.name
+        FROM graph.control c
+        LEFT JOIN graph.map_domain_elements_control mdc
+          ON mdc.control_id = c.id
+        LEFT JOIN graph.map_domain_element mde
+          ON mde.element_id = mdc.element_id
+        LEFT JOIN graph.map_risk_control mrc
+          ON mrc.control_id = c.id
+        LEFT JOIN domain_risks dr
+          ON dr.risk_id = mrc.risk_id
+        WHERE mde.domain_id = ANY(${selectedDomainIds}::uuid[])
+           OR dr.risk_id IS NOT NULL
+        ORDER BY c.name ASC
+      `),
+      prisma.$queryRaw(Prisma.sql`
+        SELECT DISTINCT
+          mrc.risk_id,
+          mrc.control_id,
+          mrc.mitigation_strength,
+          mrc.effect_type
+        FROM graph.map_risk_control mrc
+        JOIN graph.map_domain_elements_risk mer
+          ON mer.risk_id = mrc.risk_id
+        JOIN graph.map_domain_element mde
+          ON mde.element_id = mer.element_id
+        WHERE mde.domain_id = ANY(${selectedDomainIds}::uuid[])
       `)
     ]);
 
@@ -409,6 +525,10 @@ export async function GET(
       draftColumns.has('domain_id') &&
       draftColumns.has('custom_element_name') &&
       draftColumns.has('row_mode');
+    const draftHasMitigationColumns =
+      draftColumns.has('mitigating_control_id') &&
+      draftColumns.has('mitigation_strength') &&
+      draftColumns.has('mitigation_level');
 
     let savedRows: DraftSavedRow[] = [];
     if (hasDraftV2Shape) {
@@ -420,6 +540,21 @@ export async function GET(
           ara.element_id,
           ara.custom_element_name,
           ara.row_mode,
+          ${
+            draftHasMitigationColumns
+              ? Prisma.sql`ara.mitigating_control_id`
+              : Prisma.sql`NULL::uuid AS mitigating_control_id`
+          },
+          ${
+            draftHasMitigationColumns
+              ? Prisma.sql`ara.mitigation_strength`
+              : Prisma.sql`NULL::smallint AS mitigation_strength`
+          },
+          ${
+            draftHasMitigationColumns
+              ? Prisma.sql`ara.mitigation_level`
+              : Prisma.sql`NULL::text AS mitigation_level`
+          },
           ara.probability,
           ara.impact,
           ara.connectivity,
@@ -442,6 +577,9 @@ export async function GET(
           ara.element_id,
           NULL::text AS custom_element_name,
           'SYSTEM'::text AS row_mode,
+          NULL::uuid AS mitigating_control_id,
+          NULL::smallint AS mitigation_strength,
+          NULL::text AS mitigation_level,
           ara.probability,
           ara.impact,
           ara.connectivity,
@@ -465,6 +603,8 @@ export async function GET(
     const impactCatalog = mapCatalog((impactRows || []) as CatalogRow[]);
     const elementOptionRows = (elementOptions || []) as OptionRow[];
     const riskOptionRows = (riskOptions || []) as OptionRow[];
+    const controlOptionRows = (controlOptions || []) as OptionRow[];
+    const riskControlLinks = (riskControlLinksRaw || []) as RiskControlLinkRow[];
 
     const baselineMap = new Map<string, BaselineRow>();
     baselineRows.forEach((row) => {
@@ -475,6 +615,19 @@ export async function GET(
     riskOptionRows.forEach((r) => riskOptionMap.set(r.id, r));
     const elementOptionMap = new Map<string, OptionRow>();
     elementOptionRows.forEach((e) => elementOptionMap.set(e.id, e));
+    const controlOptionMap = new Map<string, OptionRow>();
+    controlOptionRows.forEach((c) => controlOptionMap.set(c.id, c));
+    const riskControlStrengthMap = new Map<string, number>();
+    const bestRiskControlMap = new Map<string, RiskControlLinkRow>();
+    riskControlLinks.forEach((link) => {
+      const strength = link.mitigation_strength == null ? 1 : Math.max(1, Math.round(toNumber(link.mitigation_strength, 1)));
+      riskControlStrengthMap.set(`${link.risk_id}::${link.control_id}`, strength);
+      const current = bestRiskControlMap.get(link.risk_id);
+      const currentStrength = current?.mitigation_strength == null ? 0 : Math.round(toNumber(current.mitigation_strength, 0));
+      if (!current || strength > currentStrength) {
+        bestRiskControlMap.set(link.risk_id, { ...link, mitigation_strength: strength });
+      }
+    });
 
     const rows: RiskAnalysisRow[] = [];
 
@@ -488,6 +641,17 @@ export async function GET(
           const connectivity = saved.connectivity == null ? null : Math.round(toNumber(saved.connectivity));
           const cascade = saved.cascade == null ? null : round4(toNumber(saved.cascade));
           const kFactor = saved.k_factor == null ? 1 : round4(toNumber(saved.k_factor, 1));
+          const fallbackControl = bestRiskControlMap.get(saved.risk_id);
+          const selectedControlId = saved.mitigating_control_id ?? fallbackControl?.control_id ?? null;
+          const selectedControlMeta = selectedControlId ? controlOptionMap.get(selectedControlId) : null;
+          const selectedStrength = selectedControlId
+            ? (saved.mitigation_strength == null
+              ? (riskControlStrengthMap.get(`${saved.risk_id}::${selectedControlId}`) ?? 1)
+              : Math.max(1, Math.round(toNumber(saved.mitigation_strength, 1))))
+            : null;
+          const selectedLevel = selectedStrength == null
+            ? null
+            : ((saved.mitigation_level || (selectedStrength >= 4 ? 'TOTAL' : 'PARCIAL')) as string).toUpperCase();
           const hasRealData =
             isPresentNumber(probability) &&
             isPresentNumber(impact) &&
@@ -498,10 +662,10 @@ export async function GET(
           let riskScore: number | null = null;
           let deltaScore: number | null = null;
           if (hasRealData) {
-            const scores = computeScores(probability!, impact!, cascade!, kFactor);
-            baseScore = scores.baseScore;
-            riskScore = scores.riskScore;
-            deltaScore = scores.deltaScore;
+            const scores = computeMitigatedScores(probability!, impact!, selectedStrength);
+            baseScore = scores.inherent;
+            riskScore = scores.residual;
+            deltaScore = scores.reduction;
           }
 
           const riskMeta = riskOptionMap.get(saved.risk_id);
@@ -525,6 +689,12 @@ export async function GET(
             baseScore,
             riskScore,
             deltaScore,
+            mitigatingControlId: selectedControlId,
+            mitigatingControlCode: selectedControlMeta?.code ?? null,
+            mitigatingControlName: selectedControlMeta?.name ?? null,
+            mitigatingControlDescription: null,
+            mitigationStrength: selectedStrength,
+            mitigationLevel: selectedLevel,
             scenario: saved.scenario ?? null,
             source: saved.source ?? null,
             analysisNotes: saved.analysis_notes ?? null,
@@ -561,10 +731,16 @@ export async function GET(
             baseScore: null,
             riskScore: null,
             deltaScore: null,
+            mitigatingControlId: null,
+            mitigatingControlCode: null,
+            mitigatingControlName: null,
+            mitigatingControlDescription: null,
+            mitigationStrength: null,
+            mitigationLevel: null,
             scenario: saved.scenario ?? null,
             source: saved.source ?? null,
             analysisNotes: saved.analysis_notes ?? null,
-            hasRealData: false,
+          hasRealData: false,
             isMissingRequiredData: true,
             isOverridden: true
           });
@@ -605,8 +781,14 @@ export async function GET(
             const i = saved.impact == null
               ? (baseline.impact == null ? null : round4(toNumber(baseline.impact)))
               : round4(toNumber(saved.impact));
+            const selectedControlId = saved.mitigating_control_id ?? baseline.mitigating_control_id;
+            const selectedStrength = selectedControlId
+              ? (saved.mitigation_strength == null
+                ? (riskControlStrengthMap.get(`${baseline.risk_id}::${selectedControlId}`) ?? (baseline.mitigation_strength == null ? 1 : Math.round(toNumber(baseline.mitigation_strength, 1))))
+                : Math.max(1, Math.round(toNumber(saved.mitigation_strength, 1))))
+              : (baseline.mitigation_strength == null ? 1 : Math.round(toNumber(baseline.mitigation_strength, 1)));
             if (!isPresentNumber(p) || !isPresentNumber(i)) return null;
-            return round6(p * i);
+            return computeMitigatedScores(p, i, selectedStrength).inherent;
           })(),
           riskScore: (() => {
             const p = saved.probability == null
@@ -615,14 +797,14 @@ export async function GET(
             const i = saved.impact == null
               ? (baseline.impact == null ? null : round4(toNumber(baseline.impact)))
               : round4(toNumber(saved.impact));
-            const c = saved.cascade == null
-              ? (baseline.cascade == null ? null : round4(toNumber(baseline.cascade)))
-              : round4(toNumber(saved.cascade));
-            const k = saved.k_factor == null
-              ? (baseline.k_factor == null ? 1 : round4(toNumber(baseline.k_factor, 1)))
-              : round4(toNumber(saved.k_factor, 1));
-            if (!isPresentNumber(p) || !isPresentNumber(i) || !isPresentNumber(c)) return null;
-            return round6((p * i) * (1 + (k * c)));
+            const selectedControlId = saved.mitigating_control_id ?? baseline.mitigating_control_id;
+            const selectedStrength = selectedControlId
+              ? (saved.mitigation_strength == null
+                ? (riskControlStrengthMap.get(`${baseline.risk_id}::${selectedControlId}`) ?? (baseline.mitigation_strength == null ? 1 : Math.round(toNumber(baseline.mitigation_strength, 1))))
+                : Math.max(1, Math.round(toNumber(saved.mitigation_strength, 1))))
+              : (baseline.mitigation_strength == null ? 1 : Math.round(toNumber(baseline.mitigation_strength, 1)));
+            if (!isPresentNumber(p) || !isPresentNumber(i)) return null;
+            return computeMitigatedScores(p, i, selectedStrength).residual;
           })(),
           deltaScore: (() => {
             const p = saved.probability == null
@@ -631,16 +813,41 @@ export async function GET(
             const i = saved.impact == null
               ? (baseline.impact == null ? null : round4(toNumber(baseline.impact)))
               : round4(toNumber(saved.impact));
-            const c = saved.cascade == null
-              ? (baseline.cascade == null ? null : round4(toNumber(baseline.cascade)))
-              : round4(toNumber(saved.cascade));
-            const k = saved.k_factor == null
-              ? (baseline.k_factor == null ? 1 : round4(toNumber(baseline.k_factor, 1)))
-              : round4(toNumber(saved.k_factor, 1));
-            if (!isPresentNumber(p) || !isPresentNumber(i) || !isPresentNumber(c)) return null;
-            const base = p * i;
-            const adjusted = (p * i) * (1 + (k * c));
-            return round6(adjusted - base);
+            const selectedControlId = saved.mitigating_control_id ?? baseline.mitigating_control_id;
+            const selectedStrength = selectedControlId
+              ? (saved.mitigation_strength == null
+                ? (riskControlStrengthMap.get(`${baseline.risk_id}::${selectedControlId}`) ?? (baseline.mitigation_strength == null ? 1 : Math.round(toNumber(baseline.mitigation_strength, 1))))
+                : Math.max(1, Math.round(toNumber(saved.mitigation_strength, 1))))
+              : (baseline.mitigation_strength == null ? 1 : Math.round(toNumber(baseline.mitigation_strength, 1)));
+            if (!isPresentNumber(p) || !isPresentNumber(i)) return null;
+            return computeMitigatedScores(p, i, selectedStrength).reduction;
+          })(),
+          mitigatingControlId: (() => saved.mitigating_control_id ?? baseline.mitigating_control_id)(),
+          mitigatingControlCode: (() => {
+            const selectedControlId = saved.mitigating_control_id ?? baseline.mitigating_control_id;
+            if (!selectedControlId) return null;
+            return controlOptionMap.get(selectedControlId)?.code ?? baseline.mitigating_control_code;
+          })(),
+          mitigatingControlName: (() => {
+            const selectedControlId = saved.mitigating_control_id ?? baseline.mitigating_control_id;
+            if (!selectedControlId) return null;
+            return controlOptionMap.get(selectedControlId)?.name ?? baseline.mitigating_control_name;
+          })(),
+          mitigatingControlDescription: baseline.mitigating_control_description,
+          mitigationStrength: (() => {
+            const selectedControlId = saved.mitigating_control_id ?? baseline.mitigating_control_id;
+            if (!selectedControlId) return null;
+            return saved.mitigation_strength == null
+              ? (riskControlStrengthMap.get(`${baseline.risk_id}::${selectedControlId}`) ?? (baseline.mitigation_strength == null ? 1 : Math.round(toNumber(baseline.mitigation_strength))))
+              : Math.max(1, Math.round(toNumber(saved.mitigation_strength, 1)));
+          })(),
+          mitigationLevel: (() => {
+            const strength = saved.mitigation_strength == null
+              ? (baseline.mitigation_strength == null ? null : Math.round(toNumber(baseline.mitigation_strength)))
+              : Math.max(1, Math.round(toNumber(saved.mitigation_strength, 1)));
+            if (saved.mitigation_level) return String(saved.mitigation_level).toUpperCase();
+            if (strength == null) return baseline.mitigation_level;
+            return strength >= 4 ? 'TOTAL' : 'PARCIAL';
           })(),
           scenario: saved.scenario ?? baseline.scenario ?? null,
           source: saved.source ?? baseline.source ?? null,
@@ -661,6 +868,13 @@ export async function GET(
       impactCatalog,
       elementOptions: elementOptionRows,
       riskOptions: riskOptionRows,
+      controlOptions: controlOptionRows,
+      riskControlLinks: riskControlLinks.map((link) => ({
+        riskId: link.risk_id,
+        controlId: link.control_id,
+        mitigationStrength: link.mitigation_strength == null ? null : Math.max(1, Math.round(toNumber(link.mitigation_strength, 1))),
+        effectType: link.effect_type
+      })),
       systemPairs: baselineRows.map((row) => ({
         domainId: row.domain_id,
         riskId: row.risk_id,
@@ -670,9 +884,21 @@ export async function GET(
         connectivity: row.connectivity == null ? null : Math.round(toNumber(row.connectivity)),
         cascade: row.cascade == null ? null : round4(toNumber(row.cascade)),
         kFactor: row.k_factor == null ? 1 : round4(toNumber(row.k_factor, 1)),
-        baseScore: row.base_score == null ? null : round6(toNumber(row.base_score)),
-        riskScore: row.risk_score == null ? null : round6(toNumber(row.risk_score)),
-        deltaScore: row.delta_score == null ? null : round6(toNumber(row.delta_score)),
+        baseScore: row.probability == null || row.impact == null
+          ? null
+          : computeMitigatedScores(round4(toNumber(row.probability)), round4(toNumber(row.impact)), row.mitigation_strength).inherent,
+        riskScore: row.probability == null || row.impact == null
+          ? null
+          : computeMitigatedScores(round4(toNumber(row.probability)), round4(toNumber(row.impact)), row.mitigation_strength).residual,
+        deltaScore: row.probability == null || row.impact == null
+          ? null
+          : computeMitigatedScores(round4(toNumber(row.probability)), round4(toNumber(row.impact)), row.mitigation_strength).reduction,
+        mitigatingControlId: row.mitigating_control_id,
+        mitigatingControlCode: row.mitigating_control_code,
+        mitigatingControlName: row.mitigating_control_name,
+        mitigatingControlDescription: row.mitigating_control_description,
+        mitigationStrength: row.mitigation_strength == null ? null : Math.round(toNumber(row.mitigation_strength)),
+        mitigationLevel: row.mitigation_level,
         hasRealData: Boolean(row.has_real_data),
         isMissingRequiredData: Boolean(row.is_missing_required_data)
       }))
@@ -773,7 +999,7 @@ export async function PUT(
            AND ra.element_id = bp.element_id
         `);
 
-    const [probabilityRowsRaw, impactRowsRaw] = await Promise.all([
+    const [probabilityRowsRaw, impactRowsRaw, controlOptionsRaw, riskControlLinksRaw] = await Promise.all([
       prisma.$queryRaw(Prisma.sql`
         SELECT id, code, name, description, base_value, sort_order
         FROM catalogos.corpus_catalog_probability
@@ -783,6 +1009,43 @@ export async function PUT(
         SELECT id, code, name, description, base_value, sort_order
         FROM catalogos.corpus_catalog_impact
         WHERE is_active = true
+      `),
+      prisma.$queryRaw(Prisma.sql`
+        WITH domain_risks AS (
+          SELECT DISTINCT mer.risk_id
+          FROM graph.map_domain_elements_risk mer
+          JOIN graph.map_domain_element mde
+            ON mde.element_id = mer.element_id
+          WHERE mde.domain_id = ANY(${selectedDomainIds}::uuid[])
+        )
+        SELECT DISTINCT
+          c.id,
+          c.code,
+          c.name
+        FROM graph.control c
+        LEFT JOIN graph.map_domain_elements_control mdc
+          ON mdc.control_id = c.id
+        LEFT JOIN graph.map_domain_element mde
+          ON mde.element_id = mdc.element_id
+        LEFT JOIN graph.map_risk_control mrc
+          ON mrc.control_id = c.id
+        LEFT JOIN domain_risks dr
+          ON dr.risk_id = mrc.risk_id
+        WHERE mde.domain_id = ANY(${selectedDomainIds}::uuid[])
+           OR dr.risk_id IS NOT NULL
+      `),
+      prisma.$queryRaw(Prisma.sql`
+        SELECT DISTINCT
+          mrc.risk_id,
+          mrc.control_id,
+          mrc.mitigation_strength,
+          mrc.effect_type
+        FROM graph.map_risk_control mrc
+        JOIN graph.map_domain_elements_risk mer
+          ON mer.risk_id = mrc.risk_id
+        JOIN graph.map_domain_element mde
+          ON mde.element_id = mer.element_id
+        WHERE mde.domain_id = ANY(${selectedDomainIds}::uuid[])
       `)
     ]);
 
@@ -804,10 +1067,18 @@ export async function PUT(
     const probabilityRows = mapCatalog((probabilityRowsRaw || []) as CatalogRow[]);
     const impactRows = mapCatalog((impactRowsRaw || []) as CatalogRow[]);
     const riskRows = (riskOptionsRaw || []) as { id: string }[];
+    const controlRows = (controlOptionsRaw || []) as OptionRow[];
+    const riskControlLinks = (riskControlLinksRaw || []) as RiskControlLinkRow[];
 
     const probabilitySet = new Set(probabilityRows.map((row) => row.baseValue));
     const impactSet = new Set(impactRows.map((row) => row.baseValue));
     const riskSet = new Set(riskRows.map((row) => row.id));
+    const controlSet = new Set(controlRows.map((row) => row.id));
+    const riskControlStrengthMap = new Map<string, number>();
+    riskControlLinks.forEach((link) => {
+      const strength = link.mitigation_strength == null ? 1 : Math.max(1, Math.round(toNumber(link.mitigation_strength, 1)));
+      riskControlStrengthMap.set(`${link.risk_id}::${link.control_id}`, strength);
+    });
 
     const baselineByPair = new Map<string, BaselineRow>();
     baselineRows.forEach((row) => {
@@ -820,6 +1091,9 @@ export async function PUT(
       riskId: string;
       elementId: string | null;
       customElementName: string | null;
+      mitigatingControlId: string | null;
+      mitigationStrength: number | null;
+      mitigationLevel: string | null;
       probability: number;
       impact: number;
       connectivity: number;
@@ -852,9 +1126,11 @@ export async function PUT(
 
         const probability = round4(toNumber(row.probability, Number.NaN));
         const impact = round4(toNumber(row.impact, Number.NaN));
-        const connectivity = Math.round(toNumber(row.connectivity, Number.NaN));
-        const cascade = round4(toNumber(row.cascade, Number.NaN));
+        const connectivity = Math.round(toNumber(row.connectivity, baseline.connectivity == null ? 1 : toNumber(baseline.connectivity)));
+        const cascade = round4(toNumber(row.cascade, baseline.cascade == null ? 0 : toNumber(baseline.cascade)));
         const kFactor = round4(Math.max(0, toNumber(row.kFactor, 1)));
+        const requestedControlId = row.mitigatingControlId ? String(row.mitigatingControlId).trim() : '';
+        const mitigatingControlId = requestedControlId || baseline.mitigating_control_id || null;
 
         if (!Number.isFinite(probability) || !probabilitySet.has(probability)) {
           return NextResponse.json({ error: 'Probabilidad invalida para fila SYSTEM.' }, { status: 400 });
@@ -862,12 +1138,15 @@ export async function PUT(
         if (!Number.isFinite(impact) || !impactSet.has(impact)) {
           return NextResponse.json({ error: 'Impacto invalido para fila SYSTEM.' }, { status: 400 });
         }
-        if (!Number.isFinite(connectivity) || connectivity < 1 || connectivity > 5) {
-          return NextResponse.json({ error: 'Conectividad invalida para fila SYSTEM.' }, { status: 400 });
+        if (mitigatingControlId && !controlSet.has(mitigatingControlId)) {
+          return NextResponse.json({ error: 'Control mitigante invalido para el dominio seleccionado.' }, { status: 400 });
         }
-        if (!Number.isFinite(cascade) || cascade < 0 || cascade > 1) {
-          return NextResponse.json({ error: 'Cascada invalida para fila SYSTEM.' }, { status: 400 });
-        }
+        const safeConnectivity = Number.isFinite(connectivity) ? clamp(connectivity, 1, 5) : 1;
+        const safeCascade = Number.isFinite(cascade) ? clamp(cascade, 0, 1) : 0;
+        const mitigationStrength = mitigatingControlId
+          ? (riskControlStrengthMap.get(`${riskId}::${mitigatingControlId}`) ?? 1)
+          : null;
+        const mitigationLevel = mitigationStrength == null ? null : (mitigationStrength >= 4 ? 'TOTAL' : 'PARCIAL');
 
         const dedupeKey = `SYSTEM::${riskId}::${elementId}`;
         if (duplicateGuard.has(dedupeKey)) {
@@ -881,10 +1160,13 @@ export async function PUT(
           riskId,
           elementId,
           customElementName: null,
+          mitigatingControlId,
+          mitigationStrength,
+          mitigationLevel,
           probability,
           impact,
-          connectivity,
-          cascade,
+          connectivity: safeConnectivity,
+          cascade: safeCascade,
           kFactor,
           scenario: row.scenario?.trim() ?? baseline.scenario ?? null,
           source: row.source?.trim() ?? baseline.source ?? null,
@@ -900,9 +1182,11 @@ export async function PUT(
 
       const probability = round4(toNumber(row.probability, Number.NaN));
       const impact = round4(toNumber(row.impact, Number.NaN));
-      const connectivity = Math.round(toNumber(row.connectivity, Number.NaN));
-      const cascade = round4(toNumber(row.cascade, Number.NaN));
+      const connectivity = Math.round(toNumber(row.connectivity, 1));
+      const cascade = round4(toNumber(row.cascade, 0));
       const kFactor = round4(Math.max(0, toNumber(row.kFactor, 1)));
+      const requestedControlId = row.mitigatingControlId ? String(row.mitigatingControlId).trim() : '';
+      const mitigatingControlId = requestedControlId || null;
 
       if (!Number.isFinite(probability) || !probabilitySet.has(probability)) {
         return NextResponse.json({ error: 'Probabilidad invalida para fila CUSTOM.' }, { status: 400 });
@@ -910,12 +1194,15 @@ export async function PUT(
       if (!Number.isFinite(impact) || !impactSet.has(impact)) {
         return NextResponse.json({ error: 'Impacto invalido para fila CUSTOM.' }, { status: 400 });
       }
-      if (!Number.isFinite(connectivity) || connectivity < 1 || connectivity > 5) {
-        return NextResponse.json({ error: 'Conectividad invalida para fila CUSTOM.' }, { status: 400 });
+      if (mitigatingControlId && !controlSet.has(mitigatingControlId)) {
+        return NextResponse.json({ error: 'Control mitigante invalido para fila CUSTOM.' }, { status: 400 });
       }
-      if (!Number.isFinite(cascade) || cascade < 0 || cascade > 1) {
-        return NextResponse.json({ error: 'Cascada invalida para fila CUSTOM.' }, { status: 400 });
-      }
+      const safeConnectivity = Number.isFinite(connectivity) ? clamp(connectivity, 1, 5) : 1;
+      const safeCascade = Number.isFinite(cascade) ? clamp(cascade, 0, 1) : 0;
+      const mitigationStrength = mitigatingControlId
+        ? (riskControlStrengthMap.get(`${riskId}::${mitigatingControlId}`) ?? 1)
+        : null;
+      const mitigationLevel = mitigationStrength == null ? null : (mitigationStrength >= 4 ? 'TOTAL' : 'PARCIAL');
 
       const dedupeKey = `CUSTOM::${riskId}::${customElementName.toLowerCase()}`;
       if (duplicateGuard.has(dedupeKey)) {
@@ -929,10 +1216,13 @@ export async function PUT(
           riskId,
           elementId: null,
         customElementName,
+        mitigatingControlId,
+        mitigationStrength,
+        mitigationLevel,
         probability,
         impact,
-        connectivity,
-        cascade,
+        connectivity: safeConnectivity,
+        cascade: safeCascade,
         kFactor,
         scenario: row.scenario?.trim() || null,
         source: row.source?.trim() || null,
@@ -945,6 +1235,10 @@ export async function PUT(
       draftColumns.has('domain_id') &&
       draftColumns.has('custom_element_name') &&
       draftColumns.has('row_mode');
+    const draftHasMitigationColumns =
+      draftColumns.has('mitigating_control_id') &&
+      draftColumns.has('mitigation_strength') &&
+      draftColumns.has('mitigation_level');
 
     await prisma.$executeRaw`
         DELETE FROM graph.audit_draft_risk_analysis
@@ -976,6 +1270,9 @@ export async function PUT(
                 connectivity,
                 cascade,
                 k_factor,
+                ${draftHasMitigationColumns ? Prisma.sql`mitigating_control_id,` : Prisma.sql``}
+                ${draftHasMitigationColumns ? Prisma.sql`mitigation_strength,` : Prisma.sql``}
+                ${draftHasMitigationColumns ? Prisma.sql`mitigation_level,` : Prisma.sql``}
                 analysis_notes,
                 source,
                 scenario,
@@ -993,6 +1290,9 @@ export async function PUT(
                 ${row.connectivity},
                 ${row.cascade},
                 ${row.kFactor},
+                ${draftHasMitigationColumns ? Prisma.sql`${row.mitigatingControlId}::uuid,` : Prisma.sql``}
+                ${draftHasMitigationColumns ? Prisma.sql`${row.mitigationStrength},` : Prisma.sql``}
+                ${draftHasMitigationColumns ? Prisma.sql`${row.mitigationLevel},` : Prisma.sql``}
                 ${row.analysisNotes},
                 ${row.source},
                 ${row.scenario},

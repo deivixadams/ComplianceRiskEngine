@@ -636,6 +636,7 @@ export default function AuditoriaWizardClient() {
 
       {step === 4 && (
         <ScopeStep
+          draftId={draftId}
           domainIds={scopeState.domainIds}
           selectedDomainName={
             scopeState.selectedReinoId

@@ -21,6 +21,7 @@ type RiskHeatmapModalProps = {
   open: boolean;
   rows: HeatmapRow[];
   onClose: () => void;
+  onLaunchAudit: () => void | Promise<void>;
 };
 
 type MetricMode = 'inherent' | 'residual';
@@ -71,11 +72,18 @@ function getSeverityByMetric(score: number, metric: MetricMode) {
   return { ...getBandByLevel(level), level };
 }
 
+function getPlotLevel(score: number, metric: MetricMode) {
+  if (metric === 'inherent') {
+    return normalizeInherentToLevel(score);
+  }
+  return Math.max(1, Math.min(5, score));
+}
+
 function pickScore(row: HeatmapRow, metric: MetricMode): number | null {
   return metric === 'inherent' ? row.baseScore : row.riskScore;
 }
 
-export default function RiskHeatmapModal({ open, rows, onClose }: RiskHeatmapModalProps) {
+export default function RiskHeatmapModal({ open, rows, onClose, onLaunchAudit }: RiskHeatmapModalProps) {
   const [metric, setMetric] = useState<MetricMode>('residual');
   const chartRef = useRef<HTMLDivElement | null>(null);
 
@@ -96,14 +104,17 @@ export default function RiskHeatmapModal({ open, rows, onClose }: RiskHeatmapMod
       const indexInCell = inCellCounter.get(key) ?? 0;
       inCellCounter.set(key, indexInCell + 1);
       const [jitterX, jitterY] = jitterOffsets[indexInCell % jitterOffsets.length];
-      const riskLabel = row.riskCode || row.riskName || 'Riesgo';
+      const riskLabel = row.riskName || row.riskCode || 'Riesgo';
       const elementLabel = row.customElementName || row.elementName || 'Elemento';
       const base = row.baseScore == null ? '--' : row.baseScore.toFixed(4);
       const residual = row.riskScore == null ? '--' : row.riskScore.toFixed(4);
+      const level = getPlotLevel(score, metric);
+      const stairShift = (level - 3) * 0.34;
+      const yStair = clampScatterCoord(probability + stairShift + jitterY * 0.8);
 
       return {
         name: `${elementLabel} | ${riskLabel}`,
-        value: [clampScatterCoord(impact - 1 + jitterX), clampScatterCoord(probability - 1 + jitterY), score],
+        value: [clampScatterCoord(impact + jitterX), yStair, score],
         symbolSize: 12 + Math.min(18, Math.max(0, score)),
         itemStyle: {
           color: 'rgba(255,255,255,0.08)',
@@ -116,7 +127,8 @@ export default function RiskHeatmapModal({ open, rows, onClose }: RiskHeatmapMod
           show: true,
           formatter: riskLabel,
           position: 'right',
-          color: '#f8fafc',
+          color: '#0f172a',
+          fontWeight: 700,
           fontSize: 11,
           padding: [0, 0, 0, 6]
         },
@@ -173,11 +185,14 @@ export default function RiskHeatmapModal({ open, rows, onClose }: RiskHeatmapMod
           containLabel: true,
           show: true,
           borderWidth: 0,
-          backgroundColor: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-            { offset: 0, color: '#08b052' },
-            { offset: 0.5, color: '#f4c300' },
-            { offset: 0.78, color: '#ff9f1a' },
-            { offset: 1, color: '#ff2f38' }
+          // Smooth radial half-moon with balanced color distribution.
+          // Center slightly outside top-right; larger radius prevents green from dominating.
+          backgroundColor: new echarts.graphic.RadialGradient(1.0, -0.02, 1.58, [
+            { offset: 0.0, color: '#ff2f38' },   // rojo intenso
+            { offset: 0.24, color: '#ff7a1f' },  // transición cálida
+            { offset: 0.5, color: '#b8a300' },   // mostaza
+            { offset: 0.74, color: '#f4c300' },  // amarillo
+            { offset: 1.0, color: '#08b052' }    // verde
           ])
         },
         xAxis: {
@@ -279,6 +294,11 @@ export default function RiskHeatmapModal({ open, rows, onClose }: RiskHeatmapMod
               onClick={() => setMetric('residual')}
             >
               Ver Residual
+            </button>
+          </div>
+          <div className={styles.toolbarActions}>
+            <button type="button" className={styles.launchAuditButton} onClick={onLaunchAudit}>
+              Lanzar auditoría
             </button>
           </div>
           <p className={styles.toolbarHint}>

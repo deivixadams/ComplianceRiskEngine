@@ -742,6 +742,23 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
     setIsHeatmapOpen(true);
   };
 
+  const handleLaunchAuditFromHeatmap = async () => {
+    if (rows.length === 0) {
+      setError('Agrega al menos un elemento-riesgo al grid para continuar.');
+      return;
+    }
+    if (hasBlockingRows) {
+      setError('Existen filas incompletas. Completa/corrige antes de continuar.');
+      return;
+    }
+
+    const ok = await persist();
+    if (!ok) return;
+
+    setIsHeatmapOpen(false);
+    onNext();
+  };
+
   if (loading) {
     return <div className={styles.loading}>Cargando analisis de riesgo...</div>;
   }
@@ -1011,7 +1028,12 @@ export default function RiskAnalysisStep({ draftId, onBack, onNext, onSave }: Ri
         </button>
       </div>
 
-      <RiskHeatmapModal open={isHeatmapOpen} rows={sortedRows} onClose={() => setIsHeatmapOpen(false)} />
+      <RiskHeatmapModal
+        open={isHeatmapOpen}
+        rows={sortedRows}
+        onClose={() => setIsHeatmapOpen(false)}
+        onLaunchAudit={handleLaunchAuditFromHeatmap}
+      />
     </div>
   );
 }

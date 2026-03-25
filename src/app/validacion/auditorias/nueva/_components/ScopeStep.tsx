@@ -25,6 +25,7 @@ type DerivedCounts = {
 };
 
 type ScopeStepProps = {
+  draftId: string | null;
   domainIds: string[];
   selectedDomainName: string | null;
   obligationIds: string[];
@@ -38,7 +39,16 @@ type ScopeStepProps = {
 
 const defaultCounts: DerivedCounts = { obligationCount: 0, riskCount: 0, controlCount: 0, testCount: 0 };
 
-export default function ScopeStep({ domainIds, selectedDomainName, obligationIds, riskIds, derivedCounts, onChange, onBack, onNext, onSave }: ScopeStepProps) {
+type DraftRiskAnalysisRow = {
+  riskId: string;
+  riskCode?: string | null;
+  riskName?: string | null;
+  elementName?: string | null;
+  customElementName?: string | null;
+  rowMode?: 'SYSTEM' | 'CUSTOM';
+};
+
+export default function ScopeStep({ draftId, domainIds, selectedDomainName, obligationIds, riskIds, derivedCounts, onChange, onBack, onNext, onSave }: ScopeStepProps) {
   const [obligations, setObligations] = useState<Obligation[]>([]);
   const [obligationsLoading, setObligationsLoading] = useState(false);
   const [risks, setRisks] = useState<Risk[]>([]);
@@ -89,6 +99,64 @@ export default function ScopeStep({ domainIds, selectedDomainName, obligationIds
       setRisksLoading(false);
       return;
     }
+
+    if (draftId) {
+      const loadRisksFromDraft = async () => {
+        setRisksLoading(true);
+        try {
+          const res = await fetch(`/api/audit/drafts/${draftId}/risk-analysis`, { cache: 'no-store' });
+          if (!res.ok) {
+            setRisks([]);
+            return;
+          }
+
+          const payload = await res.json();
+          const draftRows = Array.isArray(payload?.rows) ? (payload.rows as DraftRiskAnalysisRow[]) : [];
+          const grouped = new Map<string, { risk: Risk; elements: Set<string> }>();
+
+          draftRows.forEach((row) => {
+            const riskId = row.riskId;
+            if (!riskId) return;
+            const riskName = row.riskName || row.riskCode || 'Sin riesgo';
+            const elementName = (row.customElementName || row.elementName || '').trim();
+            const existing = grouped.get(riskId);
+
+            if (!existing) {
+              const nextRisk: Risk = {
+                id: riskId,
+                code: row.riskCode ?? null,
+                name: riskName,
+                description: null,
+                status: null,
+                riskTypeName: null,
+                riskLayerName: null
+              };
+              const elements = new Set<string>();
+              if (elementName) elements.add(elementName);
+              grouped.set(riskId, { risk: nextRisk, elements });
+              return;
+            }
+
+            if (elementName) existing.elements.add(elementName);
+          });
+
+          const nextRisks = [...grouped.values()]
+            .map(({ risk, elements }) => ({
+              ...risk,
+              description: elements.size > 0 ? `Elementos: ${[...elements].join(', ')}` : null
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+
+          setRisks(nextRisks);
+        } finally {
+          setRisksLoading(false);
+        }
+      };
+
+      loadRisksFromDraft();
+      return;
+    }
+
     if (mode === 'subset' && obligationIds.length === 0) {
       setRisks([]);
       setRisksLoading(false);
@@ -122,7 +190,7 @@ export default function ScopeStep({ domainIds, selectedDomainName, obligationIds
     };
 
     loadRisks();
-  }, [domainIds, obligationIds, mode]);
+  }, [draftId, domainIds, obligationIds, mode]);
 
   useEffect(() => {
     if (riskIds.length === 0) return;
